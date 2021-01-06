@@ -1,3 +1,5 @@
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune?ref=badge_shield)
+
 # Neptune
 [![CI](https://github.com/edgeai-neptune/neptune/workflows/CI/badge.svg?branch=main)](https://github.com/edgeai-neptune/neptune/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/edgeai-neptune/neptune)](https://goreportcard.com/report/github.com/edgeai-neptune/neptune)
@@ -107,3 +109,5 @@ If you're interested in being a contributor and want to get involved in developi
 ## License
 
 Neptune is under the Apache 2.0 license. See the [LICENSE](LICENSE) file for details.
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune?ref=badge_large)
