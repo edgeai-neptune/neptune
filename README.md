@@ -1,9 +1,8 @@
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune?ref=badge_shield)
-
 # Neptune
 [![CI](https://github.com/edgeai-neptune/neptune/workflows/CI/badge.svg?branch=main)](https://github.com/edgeai-neptune/neptune/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/edgeai-neptune/neptune)](https://goreportcard.com/report/github.com/edgeai-neptune/neptune)
 [![LICENSE](https://img.shields.io/github/license/edgeai-neptune/neptune.svg?style=flat-square)](/LICENSE)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune?ref=badge_shield)
 
 ## What is Neptune?
 
