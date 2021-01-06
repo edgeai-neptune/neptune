@@ -1,7 +1,9 @@
+简体中文 | [English](./README.md)
 # Neptune
 [![CI](https://github.com/edgeai-neptune/neptune/workflows/CI/badge.svg?branch=main)](https://github.com/edgeai-neptune/neptune/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/edgeai-neptune/neptune)](https://goreportcard.com/report/github.com/edgeai-neptune/neptune)
 [![LICENSE](https://img.shields.io/github/license/edgeai-neptune/neptune.svg?style=flat-square)](/LICENSE)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune?ref=badge_shield)
 
 ## 什么是Neptune?
 Neptune是在KubeEdge SIG AI中孵化的一个边云协同AI项目。得益于KubeEdge提供的边云协同能力，Neptune可以实现跨边云的协同训练和协同推理能力，如联合推理、增量学习、联邦学习等。Neptune支持目前广泛使用的AI框架，如TensorFlow/Pytorch/PaddlePaddle/MindSpore等，现有AI类应用可以无缝迁移到Neptune, 快速实现边云协同的训练和推理，可在降低成本、提升模型性能、保护数据隐私等方面获得提升。
@@ -81,17 +83,22 @@ Neptune的安装文档请参考[这里](/docs/setup/install.md)。
 - [会议日历](https://calendar.google.com/calendar/u/0/r?cid=Y19nODluOXAwOG05MzFiYWM3NmZsajgwZzEwOEBncm91cC5jYWxlbmRhci5nb29nbGUuY29t) | [订阅日历](https://calendar.google.com/calendar/u/0/r?cid=OHJqazhvNTE2dmZ0ZTIxcWlidmxhZTNsajRAZ3JvdXAuY2FsZW5kYXIuZ29vZ2xlLmNvbQ)
 
 ## 支持
+<!--
 如果您需要支持，请从 [故障排除指南](./docs/troubleshooting.md) 开始，然后按照我们概述的流程进行操作。
+-->
 
 如果您有任何疑问，请以下方式与我们联系：
-- [Mailing list](https://groups.google.com/forum/#!forum/kubeedge)
-- [slack](https://app.slack.com/client/TDZ5TGXQW/C01EG84REVB/details)
+- [slack channel](https://app.slack.com/client/TDZ5TGXQW/C01EG84REVB/details)
 
+<!--
 ## 贡献
 
 如果您有兴趣成为一个贡献者，也想参与到Neptune的代码开发中，
 请查看[CONTRIBUTING](CONTRIBUTING.md)获取更多关于如何提交Patch和贡献的流程。
+-->
 
 ## 许可证
 
 Neptune基于Apache 2.0许可证，查看[LICENSE](LICENSE)获取更多信息。
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fedgeai-neptune%2Fneptune?ref=badge_large)
