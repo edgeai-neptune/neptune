@@ -203,7 +203,10 @@ class TSLittleModel(BaseModel):
             input_feed = self.create_input_feed(self.session, new_image,
                                                 img_data_np)
             output_fetch = self.create_output_fetch(self.session)
-            return self.session.run(output_fetch, input_feed)
+            output = self.session.run(output_fetch, input_feed)
+            if self.postprocess:
+                output = self.postprocess(output)
+            return output
 
 
 class LCReporter(threading.Thread):
@@ -253,7 +256,7 @@ class LCReporter(threading.Thread):
             info.inferenceNumber = self.inference_number
             info.hardExampleNumber = self.hard_example_number
             info.uploadCloudRatio = (
-                    self.hard_example_number / self.inference_number
+                self.hard_example_number / self.inference_number
             )
             message = {
                 "name": BaseConfig.worker_name,
@@ -271,35 +274,33 @@ class LCReporter(threading.Thread):
 class InferenceResult:
     """The Result class for joint inference
 
-    :param is_hard_sample: `True` means a hard sample, `False` means not a hard
-        sample
+    :param is_hard_example: `True` means a hard example, `False` means not a
+        hard example
     :param final_result: the final inference result
-    :param hard_sample_edge_result: the edge little model inference result of
-        hard sample
-    :param hard_sample_cloud_result: the cloud big model inference result of
-        hard sample
+    :param hard_example_edge_result: the edge little model inference result of
+        hard example
+    :param hard_example_cloud_result: the cloud big model inference result of
+        hard example
     """
 
-    def __init__(self, is_hard_sample, final_result,
-                 hard_sample_edge_result, hard_sample_cloud_result):
-        self.is_hard_sample = is_hard_sample
+    def __init__(self, is_hard_example, final_result,
+                 hard_example_edge_result, hard_example_cloud_result):
+        self.is_hard_example = is_hard_example
         self.final_result = final_result
-        self.hard_sample_edge_result = hard_sample_edge_result
-        self.hard_sample_cloud_result = hard_sample_cloud_result
+        self.hard_example_edge_result = hard_example_edge_result
+        self.hard_example_cloud_result = hard_example_cloud_result
 
 
 class JointInference:
     """Class provided for external systems for model joint inference.
 
     :param little_model: the little model entity for edge inference
-    :param hard_example_mining_algorithm: the algorithm for judging hard sample
-    :param pre_hook: the pre function of edge inference
-    :param post_hook: the post function of edge inference
+    :param hard_example_mining_algorithm: the algorithm for judging hard
+        example
     """
 
     def __init__(self, little_model: BaseModel,
-                 hard_example_mining_algorithm=None,
-                 pre_hook=None, post_hook=None):
+                 hard_example_mining_algorithm=None):
         self.little_model = little_model
         self.big_model = BigModelClient()
         # TODO how to deal process use-defined cloud_offload_algorithm,
@@ -327,9 +328,7 @@ class JointInference:
             else:
                 hard_example_mining_algorithm = ThresholdFilter()
 
-        self.cloud_offload_algorithm = hard_example_mining_algorithm
-        self.pre_hook = pre_hook
-        self.post_hook = post_hook
+        self.hard_example_mining_algorithm = hard_example_mining_algorithm
 
         self.lc_reporter = LCReporter()
         self.lc_reporter.setDaemon(True)
@@ -338,14 +337,12 @@ class JointInference:
     def inference(self, img_data) -> InferenceResult:
         """Image inference function."""
         img_data_pre = img_data
-        if self.pre_hook:
-            img_data_pre = self.pre_hook(img_data_pre)
         edge_result = self.little_model.inference(img_data_pre)
-        if self.post_hook:
-            edge_result = self.post_hook(edge_result)
-        is_hard_sample = self.cloud_offload_algorithm.hard_judge(edge_result)
-        if not is_hard_sample:
-            LOG.debug("not hard sample, use edge result directly")
+        is_hard_example = self.hard_example_mining_algorithm.hard_judge(
+            edge_result
+        )
+        if not is_hard_example:
+            LOG.debug("not hard example, use edge result directly")
             self.lc_reporter.update_for_edge_inference()
             return InferenceResult(False, edge_result, None, None)
 
