@@ -1,43 +1,45 @@
-DESTDIR ?=
-USR_DIR ?= /usr/local
-INSTALL_DIR ?= ${DESTDIR}${USR_DIR}
-INSTALL_BIN_DIR ?= ${INSTALL_DIR}/bin
 GOPATH ?= $(shell go env GOPATH)
 
-# make all builds both cloud and edge binaries
-
+# make all builds both gm and lc binaries
 BINARIES=gm lc
+SHELL=/bin/bash
 
 .EXPORT_ALL_VARIABLES:
 OUT_DIR ?= _output
+OUT_BINPATH := $(OUT_DIR)/bin
 
-define ALL_HELP_INFO
-# Build code.
-#
+define BUILD_HELP_INFO
+# Build code with verifying or not.
+# target all is the "build" with verify.
 # Args:
 #   WHAT: binary names to build. support: $(BINARIES)
-#         the build will produce executable files under $(OUT_DIR)
+#         the build will produce executable files under ./$(OUT_BINPATH)
 #         If not specified, "everything" will be built.
 #
 # Example:
-#   make
-#   make all
-#   make all HELP=y
-#   make all WHAT=gm
-#   make all WHAT=lc GOLDFLAGS="" GOGCFLAGS="-N -l"
+#   make TARGET
+#   make TARGET HELP=y
+#   make TARGET WHAT=gm
+#   make TARGET WHAT=lc GOLDFLAGS="" GOGCFLAGS="-N -l"
 #     Note: Specify GOLDFLAGS as an empty string for building unstripped binaries, specify GOGCFLAGS
 #     to "-N -l" to disable optimizations and inlining, this will be helpful when you want to
 #     use the debugging tools like delve. When GOLDFLAGS is unspecified, it defaults to "-s -w" which strips
 #     debug information, see https://golang.org/cmd/link for other flags.
 
 endef
-.PHONY: all
+
+.PHONY: build all
 ifeq ($(HELP),y)
-all:
-	@echo "$$ALL_HELP_INFO"
+build all:
+	@echo "$${BUILD_HELP_INFO//TARGET/$@}"
 else
-all: verify-golang
+# build without verify
+# default target
+build:
 	hack/make-rules/build.sh $(WHAT)
+
+all: verify build
+
 endif
 
 
@@ -52,7 +54,7 @@ ifeq ($(HELP),y)
 verify:
 	@echo "$$VERIFY_HELP_INFO"
 else
-verify:verify-golang verify-vendor verify-codegen verify-vendor-licenses
+verify: verify-golang verify-vendor verify-codegen verify-vendor-licenses
 endif
 
 .PHONY: verify-golang
@@ -107,9 +109,7 @@ IMAGE_REPO ?= ghcr.io/edgeai-neptune/neptune
 IMAGE_TAG ?= v1alpha1
 GO_LDFLAGS ?=''
 
-.PHONY: gmimage lcimage
-gmimage:
-	docker build --build-arg GO_LDFLAGS=${GO_LDFLAGS} -t ${IMAGE_REPO}/gm:${IMAGE_TAG} -f build/gm/Dockerfile .
-
-lcimage:
-	docker build --build-arg GO_LDFLAGS=${GO_LDFLAGS} -t ${IMAGE_REPO}/lc:${IMAGE_TAG} -f build/lc/Dockerfile .
+.PHONY: images gmimage lcimage
+images: gmimage lcimage
+gmimage lcimage:
+	docker build --build-arg GO_LDFLAGS=${GO_LDFLAGS} -t ${IMAGE_REPO}/${@:image=}:${IMAGE_TAG} -f build/${@:image=}/Dockerfile .
