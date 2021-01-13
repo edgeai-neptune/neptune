@@ -31,6 +31,7 @@ func (c *MainController) Start() {
 		NewUpstreamController,
 		NewDownstreamController,
 		NewJointController,
+		NewFederatedController,
 	} {
 		f, _ := featureFunc(c.Config)
 		err := f.Start()
