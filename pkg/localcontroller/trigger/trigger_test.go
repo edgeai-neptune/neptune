@@ -121,7 +121,6 @@ func TestIndexCondition(t *testing.T) {
 }
 
 func TestTimerAndCondition(t *testing.T) {
-
 	now := time.Now()
 	hour, _ := time.ParseDuration("1h")
 	metric := "numOfSamples"

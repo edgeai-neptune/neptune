@@ -241,7 +241,7 @@ func (im *IncrementalJobManager) handleMessage(message *wsclient.Message) {
 func (im *IncrementalJobManager) trainTask(incrementalJob *IncrementalLearningJob, message *wsclient.Message) error {
 	jobConfig := incrementalJob.JobConfig
 
-	if jobConfig.WorkerStatus == "ready" && jobConfig.TriggerStatus == "ready" {
+	if jobConfig.WorkerStatus == WorkerReadyStatus && jobConfig.TriggerStatus == TriggerReadyStatus {
 		payload, ok, err := im.triggerTrainTask(incrementalJob)
 		if !ok {
 			return nil
@@ -253,25 +253,25 @@ func (im *IncrementalJobManager) trainTask(incrementalJob *IncrementalLearningJo
 			return err
 		}
 
-		message.Header.Operation = "status"
+		message.Header.Operation = StatusOperation
 		err = im.Client.WriteMessage(payload, message.Header)
 		if err != nil {
 			return err
 		}
 
-		jobConfig.TriggerStatus = "completed"
+		jobConfig.TriggerStatus = TriggerCompletedStatus
 
 		klog.Infof("job(name=%s) complete the %sing phase triggering task successfully",
 			jobConfig.UniqueIdentifier, jobConfig.Phase)
 	}
 
-	if jobConfig.WorkerStatus == "failed" {
+	if jobConfig.WorkerStatus == WorkerFailedStatus {
 		klog.Warningf("found the %sing phase worker that ran failed, "+
 			"back the training phase triggering task", jobConfig.Phase)
 		backTask(jobConfig)
 	}
 
-	if jobConfig.WorkerStatus == "completed" {
+	if jobConfig.WorkerStatus == WorkerCompletedStatus {
 		klog.Infof("job(name=%s) complete the %s task successfully", jobConfig.UniqueIdentifier, jobConfig.Phase)
 		nextTask(jobConfig)
 	}
@@ -283,7 +283,7 @@ func (im *IncrementalJobManager) trainTask(incrementalJob *IncrementalLearningJo
 func (im *IncrementalJobManager) evalTask(incrementalJob *IncrementalLearningJob, message *wsclient.Message) error {
 	jobConfig := incrementalJob.JobConfig
 
-	if jobConfig.WorkerStatus == "ready" && jobConfig.TriggerStatus == "ready" {
+	if jobConfig.WorkerStatus == WorkerReadyStatus && jobConfig.TriggerStatus == TriggerReadyStatus {
 		payload, err := im.triggerEvalTask(incrementalJob)
 		if err != nil {
 			klog.Errorf("job(name=%s) complete the %sing phase triggering task failed, error: %v",
@@ -291,26 +291,26 @@ func (im *IncrementalJobManager) evalTask(incrementalJob *IncrementalLearningJob
 			return err
 		}
 
-		message.Header.Operation = "status"
+		message.Header.Operation = StatusOperation
 		err = im.Client.WriteMessage(payload, message.Header)
 		if err != nil {
 			return err
 		}
 
-		jobConfig.TriggerStatus = "completed"
+		jobConfig.TriggerStatus = TriggerCompletedStatus
 
 		klog.Infof("job(name=%s) complete the %sing phase triggering task successfully",
 			jobConfig.UniqueIdentifier, jobConfig.Phase)
 	}
 
-	if jobConfig.WorkerStatus == "failed" {
+	if jobConfig.WorkerStatus == WorkerFailedStatus {
 		msg := fmt.Sprintf("job(name=%s) found the %sing phase worker that ran failed, "+
 			"back the training phase triggering task", jobConfig.UniqueIdentifier, jobConfig.Phase)
 		klog.Errorf(msg)
 		return fmt.Errorf(msg)
 	}
 
-	if jobConfig.WorkerStatus == "completed" {
+	if jobConfig.WorkerStatus == WorkerCompletedStatus {
 		klog.Infof("job(name=%s) complete the %s task successfully", jobConfig.UniqueIdentifier, jobConfig.Phase)
 		nextTask(jobConfig)
 	}
@@ -322,7 +322,7 @@ func (im *IncrementalJobManager) evalTask(incrementalJob *IncrementalLearningJob
 func (im *IncrementalJobManager) deployTask(incrementalJob *IncrementalLearningJob, message *wsclient.Message) error {
 	jobConfig := incrementalJob.JobConfig
 
-	if jobConfig.WorkerStatus == "ready" && jobConfig.TriggerStatus == "ready" {
+	if jobConfig.WorkerStatus == WorkerReadyStatus && jobConfig.TriggerStatus == TriggerReadyStatus {
 		models, payload, err := im.triggerDeployTask(incrementalJob)
 		if err != nil {
 			klog.Errorf("job(name=%s) complete the %sing phase triggering task failed, error: %v",
@@ -336,12 +336,12 @@ func (im *IncrementalJobManager) deployTask(incrementalJob *IncrementalLearningJ
 		}
 		klog.Infof("job(name=%s) deploys deployed model successfully.", jobConfig.UniqueIdentifier)
 
-		message.Header.Operation = "status"
+		message.Header.Operation = StatusOperation
 		if err = im.Client.WriteMessage(payload, message.Header); err != nil {
 			return err
 		}
 
-		jobConfig.TriggerStatus = "completed"
+		jobConfig.TriggerStatus = TriggerCompletedStatus
 
 		klog.Infof("job(name=%s) complete the %sing phase triggering task successfully",
 			jobConfig.UniqueIdentifier, jobConfig.Phase)
@@ -377,11 +377,11 @@ func (im *IncrementalJobManager) createJob(name string, message *wsclient.Messag
 		time.Sleep(time.Duration(JobIterationIntervalSeconds) * time.Second)
 
 		switch jobConfig.Phase {
-		case "train":
+		case TrainPhase:
 			err = im.trainTask(incrementalJob, message)
-		case "eval":
+		case EvalPhase:
 			err = im.evalTask(incrementalJob, message)
-		case "deploy":
+		case DeployPhase:
 			err = im.deployTask(incrementalJob, message)
 		default:
 			klog.Errorf("not vaild phase: %s", jobConfig.Phase)
@@ -439,13 +439,9 @@ func (im *IncrementalJobManager) deleteJob(name string) error {
 		return err
 	}
 
-	if _, ok := im.IncrementalJobMap[name]; ok {
-		delete(im.IncrementalJobMap, name)
-	}
+	delete(im.IncrementalJobMap, name)
 
-	if _, ok := im.IncrementalJobSignal[name]; ok {
-		delete(im.IncrementalJobSignal, name)
-	}
+	delete(im.IncrementalJobSignal, name)
 
 	return nil
 }
@@ -460,9 +456,9 @@ func (im *IncrementalJobManager) initJob(incrementalJob *IncrementalLearningJob)
 	jobConfig.Lock = sync.Mutex{}
 
 	jobConfig.Version = 0
-	jobConfig.Phase = "train"
-	jobConfig.WorkerStatus = "ready"
-	jobConfig.TriggerStatus = "ready"
+	jobConfig.Phase = TrainPhase
+	jobConfig.WorkerStatus = WorkerReadyStatus
+	jobConfig.TriggerStatus = TriggerReadyStatus
 	jobConfig.TriggerTime = time.Now()
 
 	if err := createOutputDir(jobConfig); err != nil {
@@ -521,8 +517,8 @@ func (im *IncrementalJobManager) triggerTrainTask(incrementalJob *IncrementalLea
 		jobConfig.TrainModelConfig.TrainedModel[format],
 	}
 	uts := TriggeringResultUpstream{
-		Phase:  "train",
-		Status: "ready",
+		Phase:  TrainPhase,
+		Status: WorkerReadyStatus,
 		Input: struct {
 			Model     ModelConfig `json:"model"`
 			DataURL   string      `json:"dataUrl"`
@@ -563,8 +559,8 @@ func (im *IncrementalJobManager) triggerEvalTask(incrementalJOb *IncrementalLear
 	})
 
 	uts := TriggeringResultUpstream{
-		Phase:  "eval",
-		Status: "ready",
+		Phase:  EvalPhase,
+		Status: WorkerReadyStatus,
 		Input: struct {
 			Models    []interface{} `json:"models"`
 			DataURL   string        `json:"dataUrl"`
@@ -616,7 +612,7 @@ func (im *IncrementalJobManager) triggerDeployTask(incrementalJob *IncrementalLe
 	for metric := range newMetrics {
 		if strings.HasPrefix(cond.Metric, metric) {
 			var l []float64
-			for i, _ := range newMetrics[metric] {
+			for i := range newMetrics[metric] {
 				l = append(l, newMetrics[metric][i]-oldMetrics[metric][i])
 			}
 			metricDelta[metric+"_delta"] = l
@@ -640,8 +636,8 @@ func (im *IncrementalJobManager) triggerDeployTask(incrementalJob *IncrementalLe
 	}
 
 	uts := TriggeringResultUpstream{
-		Phase:  "deploy",
-		Status: "ready",
+		Phase:  DeployPhase,
+		Status: WorkerReadyStatus,
 		Input: struct {
 			Model ModelConfig `json:"model"`
 		}{
@@ -882,7 +878,7 @@ func (im *IncrementalJobManager) monitorWorker() {
 			Namespace:    workerMessage.Namespace,
 			ResourceKind: workerMessage.OwnerKind,
 			ResourceName: workerMessage.OwnerName,
-			Operation:    "status",
+			Operation:    StatusOperation,
 		}
 
 		if err := im.Client.WriteMessage(workerMessage, header); err != nil {
@@ -933,9 +929,9 @@ func (im *IncrementalJobManager) handleWorkerMessage(incrementalJob *Incremental
 
 	incrementalJob.JobConfig.WorkerStatus = workerMessage.Status
 
-	if incrementalJob.JobConfig.WorkerStatus == "completed" {
+	if incrementalJob.JobConfig.WorkerStatus == WorkerCompletedStatus {
 		switch incrementalJob.JobConfig.Phase {
-		case "train":
+		case TrainPhase:
 			{
 				for i := 0; i < len(models); i++ {
 					format := models[i].Format
@@ -945,7 +941,7 @@ func (im *IncrementalJobManager) handleWorkerMessage(incrementalJob *Incremental
 				}
 			}
 
-		case "eval":
+		case EvalPhase:
 			incrementalJob.JobConfig.EvalResult = models
 		}
 	}
@@ -954,13 +950,13 @@ func (im *IncrementalJobManager) handleWorkerMessage(incrementalJob *Incremental
 // forwardSamples deletes the samples information in the memory
 func forwardSamples(jobConfig *JobConfig) {
 	switch jobConfig.Phase {
-	case "train":
+	case TrainPhase:
 		{
 			jobConfig.Lock.Lock()
 			jobConfig.DataSamples.TrainSamples = jobConfig.DataSamples.TrainSamples[:0]
 			jobConfig.Lock.Unlock()
 		}
-	case "eval":
+	case EvalPhase:
 		{
 			if len(jobConfig.DataSamples.EvalVersionSamples) > EvalSamplesCapacity {
 				jobConfig.DataSamples.EvalVersionSamples = jobConfig.DataSamples.EvalVersionSamples[1:]
@@ -971,33 +967,33 @@ func forwardSamples(jobConfig *JobConfig) {
 
 // backTask backs train task status
 func backTask(jobConfig *JobConfig) {
-	jobConfig.Phase = "train"
+	jobConfig.Phase = TrainPhase
 	initTaskStatus(jobConfig)
 }
 
 // initTaskStatus inits task status
 func initTaskStatus(jobConfig *JobConfig) {
-	jobConfig.WorkerStatus = "ready"
-	jobConfig.TriggerStatus = "ready"
+	jobConfig.WorkerStatus = WorkerReadyStatus
+	jobConfig.TriggerStatus = TriggerReadyStatus
 }
 
 // nextTask converts next task status
 func nextTask(jobConfig *JobConfig) {
 	switch jobConfig.Phase {
-	case "train":
+	case TrainPhase:
 		{
 			forwardSamples(jobConfig)
 			initTaskStatus(jobConfig)
-			jobConfig.Phase = "eval"
+			jobConfig.Phase = EvalPhase
 		}
 
-	case "eval":
+	case EvalPhase:
 		{
 			forwardSamples(jobConfig)
 			initTaskStatus(jobConfig)
-			jobConfig.Phase = "deploy"
+			jobConfig.Phase = DeployPhase
 		}
-	case "deploy":
+	case DeployPhase:
 		{
 			backTask(jobConfig)
 		}

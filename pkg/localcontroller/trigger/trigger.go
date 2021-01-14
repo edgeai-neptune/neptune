@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-type TriggerI interface {
+type Base interface {
 	Trigger(stats map[string]interface{}) bool
 }
 
@@ -130,7 +130,7 @@ func (tt *TimerRangeTrigger) Trigger(stats map[string]interface{}) bool {
 }
 
 type AndTrigger struct {
-	Triggers []TriggerI
+	Triggers []Base
 }
 
 func (at *AndTrigger) Trigger(stats map[string]interface{}) bool {
@@ -142,8 +142,8 @@ func (at *AndTrigger) Trigger(stats map[string]interface{}) bool {
 	return true
 }
 
-func newAndTrigger(triggers ...TriggerI) *AndTrigger {
-	var valid []TriggerI
+func newAndTrigger(triggers ...Base) *AndTrigger {
+	var valid []Base
 	for _, t := range triggers {
 		if t != nil {
 			valid = append(valid, t)
@@ -154,7 +154,7 @@ func newAndTrigger(triggers ...TriggerI) *AndTrigger {
 	}
 }
 
-func NewTrigger(trigger map[string]interface{}) (TriggerI, error) {
+func NewTrigger(trigger map[string]interface{}) (Base, error) {
 	var err error
 	checkPeriodSeconds, ok := trigger["checkPeriodSeconds"]
 	if !ok {
@@ -162,7 +162,7 @@ func NewTrigger(trigger map[string]interface{}) (TriggerI, error) {
 	}
 	_ = checkPeriodSeconds
 	_, ok = trigger["condition"]
-	var conditionTrigger TriggerI
+	var conditionTrigger Base
 	if ok {
 		cond := trigger["condition"].(map[string]interface{})
 
@@ -177,7 +177,7 @@ func NewTrigger(trigger map[string]interface{}) (TriggerI, error) {
 			Threshold: threshold,
 		}
 	}
-	var timerTrigger TriggerI
+	var timerTrigger Base
 	_, ok = trigger["timer"]
 	if ok {
 		timer := make(map[string]string)
