@@ -16,6 +16,10 @@ func (c *FakeNeptuneV1alpha1) Datasets(namespace string) v1alpha1.DatasetInterfa
 	return &FakeDatasets{c, namespace}
 }
 
+func (c *FakeNeptuneV1alpha1) IncrementalLearningJobs(namespace string) v1alpha1.IncrementalLearningJobInterface {
+	return &FakeIncrementalLearningJobs{c, namespace}
+}
+
 func (c *FakeNeptuneV1alpha1) JointInferenceServices(namespace string) v1alpha1.JointInferenceServiceInterface {
 	return &FakeJointInferenceServices{c, namespace}
 }
