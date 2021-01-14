@@ -443,7 +443,7 @@ func (im *IncrementalJobManager) deleteJob(name string) error {
 		delete(im.IncrementalJobMap, name)
 	}
 
-	if _, ok := im.IncrementalJobMap[name]; ok {
+	if _, ok := im.IncrementalJobSignal[name]; ok {
 		delete(im.IncrementalJobSignal, name)
 	}
 
@@ -567,7 +567,7 @@ func (im *IncrementalJobManager) triggerEvalTask(incrementalJOb *IncrementalLear
 		Status: "ready",
 		Input: struct {
 			Models    []interface{} `json:"models"`
-			DataUrl   string        `json:"dataUrl"`
+			DataURL   string        `json:"dataUrl"`
 			OutputDir string        `json:"outputDir"`
 		}{
 			models,

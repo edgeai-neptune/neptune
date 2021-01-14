@@ -99,7 +99,6 @@ func (bt *BinaryTrigger) Trigger(stats map[string]interface{}) bool {
 	default:
 		return false
 	}
-
 }
 
 type TimerRangeTrigger struct {
@@ -156,7 +155,6 @@ func newAndTrigger(triggers ...TriggerI) *AndTrigger {
 }
 
 func NewTrigger(trigger map[string]interface{}) (TriggerI, error) {
-
 	var err error
 	checkPeriodSeconds, ok := trigger["checkPeriodSeconds"]
 	if !ok {
@@ -205,5 +203,4 @@ func NewTrigger(trigger map[string]interface{}) (TriggerI, error) {
 		return nil, err
 	}
 	return newAndTrigger(timerTrigger, conditionTrigger), err
-
 }

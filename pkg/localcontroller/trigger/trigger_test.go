@@ -33,11 +33,9 @@ func TestTimerInRange(t *testing.T) {
 			t.Errorf("failed to trigger timer %v, expected=%v", timer, tt.expected)
 		}
 	}
-
 }
 
 func TestCondition(t *testing.T) {
-
 	metric := "numOfSamples"
 	stats := map[string]interface{}{
 		metric: 500,
@@ -89,7 +87,6 @@ func TestCondition(t *testing.T) {
 }
 
 func TestIndexCondition(t *testing.T) {
-
 	metric := "pricision_delta"
 	subMetric := metric + "[1]"
 
