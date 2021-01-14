@@ -54,19 +54,20 @@ func runServer() {
 		return
 	}
 
-	_, err := manager.NewDatasetManager(c, Options)
+	dm, err := manager.NewDatasetManager(c, Options)
 	if err != nil {
 		klog.Errorf("create dataset manager failed, error: %v", err)
 	}
 
-	_, err = manager.NewModelManager(c)
+	mm, err := manager.NewModelManager(c)
 	if err != nil {
 		klog.Errorf("create model manager failed, error: %v", err)
 	}
 
 	jm := manager.NewJointInferenceManager(c)
+	im := manager.NewIncrementalJobManager(c, dm, mm, Options)
 
-	s := server.NewServer(Options, jm)
+	s := server.NewServer(Options, jm, im)
 
 	s.Start()
 }
