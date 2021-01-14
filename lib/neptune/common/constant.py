@@ -12,6 +12,7 @@ class Framework(Enum):
 
 class K8sResourceKind(Enum):
     JOINT_INFERENCE_SERVICE = "jointinferenceservice"
+    INCREMENTAL_JOB = "incrementaljob"
 
 
 class K8sResourceKindStatus(Enum):
