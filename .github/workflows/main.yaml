@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - il-xdq
+      - incremental-learning
     tags:
   pull_request:
 
