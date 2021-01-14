@@ -65,8 +65,9 @@ func runServer() {
 	}
 
 	jm := manager.NewJointInferenceManager(c)
+	fm := manager.NewFederatedLearningManager(c)
 
-	s := server.NewServer(Options, jm)
+	s := server.NewServer(Options, jm, fm)
 
 	s.Start()
 }
