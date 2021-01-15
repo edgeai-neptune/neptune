@@ -49,8 +49,7 @@ the incremental learning specification/status and a controller to synchronize th
 
 
 ## Design Details
-We use the `job` word to represent the **Constantly Iterative Update** tasks including the train/eval/deploy task.<br/>
-There are three stages in a job: train/eval/deploy.
+There are three stages in a incremental learning job: train/eval/deploy.
 
 Each stage contains these below states:
 1. Waiting: wait to trigger satisfied, i.e. wait to train/eval/deploy
@@ -70,7 +69,7 @@ The tables below summarize the group, kind and API version details for the CRD.
 
 | Field                 | Description             |
 |-----------------------|-------------------------|
-|Group                  | edgeai.io     |
+|Group                  | neptune.io     |
 |APIVersion             | v1alpha1                |
 |Kind                   | IncrementalLearningJob             |
 
@@ -79,15 +78,15 @@ The tables below summarize the group, kind and API version details for the CRD.
 
 Below is the CustomResourceDefinition yaml for `IncrementalLearningJob`:
 
-[crd source](/build/crds/edgeai/incrementaljob_v1alpha1.yaml)
+[crd source](/build/crds/neptune/incrementaljob_v1alpha1.yaml)
 
 ```yaml
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: incrementaljobs.edgeai.io
+  name: incrementaljobs.neptune.io
 spec:
-  group: edgeai.io
+  group: neptune.io
   names:
     kind: IncrementalJob
     plural: incrementaljobs
@@ -332,7 +331,7 @@ spec:
 
 ### Incremental learning job type definition
 
-[go source](pkg/apis/edgeai/v1alpha1/incrementaljob_types.go)
+[go source](pkg/apis/neptune/v1alpha1/incrementaljob_types.go)
 
 ```go
 package v1alpha1
@@ -500,7 +499,7 @@ Here is a list of validations we need to support :
 
 ### Incremental learning job sample
 ```yaml
-apiVersion: edgeai.io/v1alpha1
+apiVersion: neptune.io/v1alpha1
 kind: IncrementalLearningJob
 metadata:
   name: helmet-detection-demo
@@ -615,7 +614,7 @@ Updates are categorized below along with the possible actions that the upstream 
     // 
     type WorkerOutput struct {
         Models   []*Model  `json:"models"`
-        TaskInfo *TaskInfo `json:"taskInfo"`
+        OwnerInfo *OwnerInfo `json:"ownerInfo"`
     }
     
     // Model defines the model information 
