@@ -155,7 +155,7 @@ spec:
                     - trigger
                     - nodeName
                     - workerSpec
-                    - hardExampleAlgorithm
+                    - hardExampleMining
                   properties:
                     model:
                       type: object
@@ -166,7 +166,7 @@ spec:
                           type: string
                     nodeName:
                       type: string
-                    hardExampleAlgorithm:
+                    hardExampleMining:
                       type: object
                       required:
                         - name
