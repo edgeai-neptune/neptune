@@ -14,7 +14,7 @@
      * [Incremental Learning Controller](#incremental-learning-controller)
      * [Downstream Controller](#downstream-controller)
      * [Upstream Controller](#upstream-controller)
-     * [Details of api between GC(cloud) and LC(edge)](#details-of-api-between-gccloud-and-lcedge)
+     * [Details of api between GM(cloud) and LC(edge)](#details-of-api-between-gmcloud-and-lcedge)
    * [Workers Communication](#workers-communication)
 
 # Incremental Learning
@@ -594,18 +594,18 @@ Updates are categorized below along with the possible actions that the upstream 
 |-------------------------------     |---------------------------------------------- |
 |Incremental-learning-job Reported State Updated    |  The controller appends the reported status of the job by LC in the cloud. |
 
-### Details of api between GC(cloud) and LC(edge)
-1. GC(downstream controller) syncs the job info to LC:
+### Details of api between GM(cloud) and LC(edge)
+1. GM(downstream controller) syncs the job info to LC:
     ```go
     // POST <namespace>/incrementallearningjobs/<job-name>
     // body same to the job crd of k8s api, omitted here.
     ```
 
-1. LC uploads the job status which reported by the worker to GC(upstream controller):
+1. LC uploads the job status which reported by the worker to GM(upstream controller):
     ```go
     // POST <namespace>/incrementallearningjobs/<job-name>/status
    
-    // WorkerMessage defines the message from that the training worker. It will send to GC.
+    // WorkerMessage defines the message from that the training worker. It will send to GM.
     type WorkerMessage struct {
         Phase  string        `json:"phase"`
         Status string        `json:"status"`
