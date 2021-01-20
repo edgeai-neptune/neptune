@@ -84,7 +84,7 @@ func (jm *JointInferenceManager) monitorWorker() {
 			Namespace:    workerMessage.Namespace,
 			ResourceKind: workerMessage.OwnerKind,
 			ResourceName: workerMessage.OwnerName,
-			Operation:    "status",
+			Operation:    StatusOperation,
 		}
 
 		um := UpstreamMessage{
