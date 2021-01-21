@@ -57,7 +57,7 @@ def init_yolo(model_path, input_shape):
     return yolo_infer, yolo_session
 
 
-def validate(data_path, model_path, val_txt, class_names, input_shape=(352, 640)):
+def validate(model_path, test_dataset, class_names, input_shape=(352, 640)):
     # model_path = './models/resnet18_352x640_person&face/yolo3_resnet18.pb'
     yolo_infer, yolo_session = init_yolo(model_path, input_shape)
 
@@ -73,35 +73,30 @@ def validate(data_path, model_path, val_txt, class_names, input_shape=(352, 640)
     count_ground = [1e-6 for ix in range(class_num)]
     count_pred = [1e-6 for ix in range(class_num)]
 
-    # val_file = './data/test_Person+Face-coco-20190118.txt'  #
-    val_file = val_txt
-    with open(val_file, 'r', encoding='utf-8') as fp_label:
-        # with codecs.open(val_file, 'r', encoding='utf-8') as fp_label:
-        lines = fp_label.readlines()
-        for line in lines:
-            line = line.strip()
-            if not line:
-                print("read line error")
-                continue
+    for line in test_dataset:
+        line = line.strip()
+        if not line:
+            print("read line error")
+            continue
 
-            pos = line.find(' ')
-            if pos == -1:
-                print('error line : ', line)
-                continue
+        pos = line.find(' ')
+        if pos == -1:
+            print('error line : ', line)
+            continue
 
-            img_file = line[:pos]
+        img_file = line[:pos]
 
-            bbox_list_ground = line[pos + 1:].split(' ')
-            time_predict, correct, pred, ground = validate_img_file(data_path, yolo_infer, yolo_session, img_file,
-                                                                    bbox_list_ground,
-                                                                    folder_out, class_names)
+        bbox_list_ground = line[pos + 1:].split(' ')
+        time_predict, correct, pred, ground = validate_img_file(yolo_infer, yolo_session, img_file,
+                                                                bbox_list_ground,
+                                                                folder_out, class_names)
 
-            count_correct = [count_correct[ix] + correct[ix] for ix in range(class_num)]
-            count_pred = [count_pred[ix] + pred[ix] for ix in range(class_num)]
-            count_ground = [count_ground[ix] + ground[ix] for ix in range(class_num)]
+        count_correct = [count_correct[ix] + correct[ix] for ix in range(class_num)]
+        count_pred = [count_pred[ix] + pred[ix] for ix in range(class_num)]
+        count_ground = [count_ground[ix] + ground[ix] for ix in range(class_num)]
 
-            count_img += 1
-            time_all += time_predict
+        count_img += 1
+        time_all += time_predict
 
     print('count_correct', count_correct)
     print('count_pred', count_pred)
@@ -124,11 +119,10 @@ def validate(data_path, model_path, val_txt, class_names, input_shape=(352, 640)
     return precision, recall, all_precisions, all_recalls
 
 
-def validate_img_file(data_path, yolo_infer, yolo_session, img_file, bbox_list_ground, folder_out, class_names):
+def validate_img_file(yolo_infer, yolo_session, img_file, bbox_list_ground, folder_out, class_names):
     print('validate_img_file : ', img_file)
     class_num = len(class_names)
-    img_root = data_path
-    img_data = Image.open(img_root + img_file)
+    img_data = Image.open(img_file)
     height, width = img_data.size
     img_data = np.array(img_data)
     if len(img_data.shape) == 3:
@@ -156,7 +150,9 @@ def validate_img_file(data_path, yolo_infer, yolo_session, img_file, bbox_list_g
     colors = 'yellow,blue,green,red'
     if folder_out is not None:
         img = draw_boxes(img_data, labels, scores, bbox_list_pred, class_names, colors)
+        img_file = img_file.split("/")[-1]
         cv2.imwrite(os.path.join(folder_out, img_file), img)
+
     # print ('\tbbox_list_pred : ', bbox_list_pred)
     # print ('\tbbox_list_ground : ', bbox_list_ground)
     count_correct = [0 for ix in range(class_num)]

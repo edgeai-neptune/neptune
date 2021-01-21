@@ -8,11 +8,12 @@ import tensorflow as tf
 from tqdm import tqdm
 
 from data_gen import DataGen
-from kubeedge_ai.common.constant import BASE_MODEL_URL
+from neptune.incremental_learning.incremental_learning import IncrementalConfig
 from yolo3_multiscale import Yolo3
 from yolo3_multiscale import YoloConfig
 
 LOG = logging.getLogger(__name__)
+BASE_MODEL_URL = IncrementalConfig().base_model_url
 
 flags = tf.flags.FLAGS
 

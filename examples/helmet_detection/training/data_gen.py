@@ -27,8 +27,6 @@ class DataGen(object):
         self.num_classes = len(self.class_names)
         self.max_boxes = config.max_boxes
 
-        self.data_path = flags.data_url
-
         self.train_curr_index = 0
         self.train_data = train_data
         self.train_data_size = len(self.train_data)
@@ -125,8 +123,7 @@ class DataGen(object):
         '''random preprocessing for real-time data augmentation'''
 
         line = annotation_line.split()
-        image_root = self.data_path
-        image = Image.open(image_root + line[0])
+        image = Image.open(line[0])
         iw, ih = image.size
         h, w = input_shape
         box = np.array([np.array(list(map(int, box.split(',')))) for box in line[1:]])

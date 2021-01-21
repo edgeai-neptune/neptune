@@ -6,7 +6,6 @@ import os
 import tensorflow as tf
 
 from resnet18 import ResNet18
-from resnet18_nas import ResNet18 as ResNet18_nas
 
 LOG = logging.getLogger(__name__)
 flags = tf.flags.FLAGS
@@ -257,17 +256,6 @@ class Yolo3:
 
     def _resnet18(self, inputs, training=True):
         cnn_model = ResNet18(inputs, training)
-        for k, v in cnn_model.end_points.items():
-            print(k)
-            print(v)
-        features_out = [cnn_model.end_points['conv5_output'], cnn_model.end_points['conv4_output'],
-                        cnn_model.end_points['conv3_output']]
-        filters_yolo_block = [256, 128, 64]
-        conv_index = 19
-        return features_out, filters_yolo_block, conv_index
-
-    def _resnet18_nas(self, inputs, training=True, nas_sequence=None):
-        cnn_model = ResNet18_nas(inputs, training, nas_sequence)
         for k, v in cnn_model.end_points.items():
             print(k)
             print(v)
