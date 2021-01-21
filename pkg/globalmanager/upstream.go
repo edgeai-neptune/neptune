@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 
@@ -45,6 +47,14 @@ func newUnmarshalError(namespace, name, operation string, content []byte) error 
 	return fmt.Errorf("Unable to unmarshal content for (%s/%s) operation: '%s', content: '%+v'", namespace, name, operation, string(content))
 }
 
+func checkUpstreamOperation(operation string) error {
+	// current only support the 'status' operation
+	if operation != "status" {
+		return fmt.Errorf("unknown operation %s", operation)
+	}
+	return nil
+}
+
 // updateDatasetStatus updates the dataset status
 func (uc *UpstreamController) updateDatasetStatus(name, namespace string, status neptunev1.DatasetStatus) error {
 	client := uc.client.Datasets(namespace)
@@ -67,12 +77,13 @@ func (uc *UpstreamController) updateDatasetStatus(name, namespace string, status
 
 // updateDatasetFromEdge syncs update from edge
 func (uc *UpstreamController) updateDatasetFromEdge(name, namespace, operation string, content []byte) error {
-	if operation != "status" {
-		return fmt.Errorf("unknown operation %s", operation)
+	err := checkUpstreamOperation(operation)
+	if err != nil {
+		return err
 	}
 
 	status := neptunev1.DatasetStatus{}
-	err := json.Unmarshal(content, &status)
+	err = json.Unmarshal(content, &status)
 	if err != nil {
 		return newUnmarshalError(namespace, name, operation, content)
 	}
@@ -115,12 +126,10 @@ func (uc *UpstreamController) updateJointInferenceMetrics(name, namespace string
 
 // updateJointInferenceFromEdge syncs the edge updates to k8s
 func (uc *UpstreamController) updateJointInferenceFromEdge(name, namespace, operation string, content []byte) error {
-	// current only support the 'status' operation
-	if operation != "status" {
-		return fmt.Errorf("unknown operation %s", operation)
+	err := checkUpstreamOperation(operation)
+	if err != nil {
+		return err
 	}
-
-	var err error
 
 	// Output defines owner output information
 	type Output struct {
@@ -162,6 +171,79 @@ func (uc *UpstreamController) updateJointInferenceFromEdge(name, namespace, oper
 	err = uc.updateJointInferenceMetrics(name, namespace, metrics)
 	if err != nil {
 		return fmt.Errorf("failed to update metrics, err:%+w", err)
+	}
+	return nil
+}
+
+func (uc *UpstreamController) appendIncrementalLearningJobStatusCondition(name, namespace string, cond neptunev1.ILJobCondition) error {
+	client := uc.client.IncrementalLearningJobs(namespace)
+
+	return retryUpdateStatus(name, namespace, (func() error {
+		job, err := client.Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		job.Status.Conditions = append(job.Status.Conditions, cond)
+		_, err = client.UpdateStatus(context.TODO(), job, metav1.UpdateOptions{})
+		return err
+	}))
+}
+
+// updateIncrementalLearningFromEdge syncs the edge updates to k8s
+func (uc *UpstreamController) updateIncrementalLearningFromEdge(name, namespace, operation string, content []byte) error {
+	err := checkUpstreamOperation(operation)
+	if err != nil {
+		return err
+	}
+
+	var jobStatus struct {
+		Phase  string `json:"phase"`
+		Status string `json:"status"`
+	}
+
+	err = json.Unmarshal(content, &jobStatus)
+	if err != nil {
+		return newUnmarshalError(namespace, name, operation, content)
+	}
+
+	// Get the condition data.
+	// Here unmarshal and marshal immediately to skip the unnecessary fields
+	var condData IncrementalCondData
+	err = json.Unmarshal(content, &condData)
+	if err != nil {
+		return newUnmarshalError(namespace, name, operation, content)
+	}
+	condDataBytes, _ := json.Marshal(&condData)
+
+	cond := neptunev1.ILJobCondition{
+		Type:               neptunev1.ILJobStageCondReady,
+		Status:             v1.ConditionTrue,
+		LastHeartbeatTime:  metav1.Now(),
+		LastTransitionTime: metav1.Now(),
+		Data:               string(condDataBytes),
+	}
+
+	switch strings.ToLower(jobStatus.Phase) {
+	case "train":
+		cond.Stage = neptunev1.ILJobTrain
+	case "eval":
+		cond.Stage = neptunev1.ILJobEval
+	case "deploy":
+		cond.Stage = neptunev1.ILJobDeploy
+	}
+
+	switch strings.ToLower(jobStatus.Status) {
+	case "ready":
+		cond.Type = neptunev1.ILJobStageCondReady
+	case "completed":
+		cond.Type = neptunev1.ILJobStageCondCompleted
+	case "failed":
+		cond.Type = neptunev1.ILJobStageCondFailed
+	}
+
+	err = uc.appendIncrementalLearningJobStatusCondition(name, namespace, cond)
+	if err != nil {
+		return fmt.Errorf("failed to append condition, err:%+w", err)
 	}
 	return nil
 }
@@ -226,8 +308,9 @@ func NewUpstreamController(cfg *config.ControllerConfig) (FeatureControllerI, er
 	// NOTE: current no direct model update from edge,
 	// model update will be triggered by the corresponding training feature
 	uc.updateHandlers = map[string]updateHandler{
-		"dataset":               uc.updateDatasetFromEdge,
-		"jointinferenceservice": uc.updateJointInferenceFromEdge,
+		"dataset":                uc.updateDatasetFromEdge,
+		"incrementallearningjob": uc.updateIncrementalLearningFromEdge,
+		"jointinferenceservice":  uc.updateJointInferenceFromEdge,
 	}
 
 	return uc, nil

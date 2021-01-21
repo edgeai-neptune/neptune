@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - incremental-learning
     tags:
   pull_request:
 

@@ -217,13 +217,13 @@ func (dm *DatasetManager) monitorDataSources(message *wsclient.Message, uniqueId
 		klog.Infof("dataset(name=%s) get samples from data source(url=%s) successfully. number of samples: %d",
 			uniqueIdentifier, dataURL, dataSource.NumberOfSamples)
 
-		message.Header.Operation = "status"
+		message.Header.Operation = StatusOperation
 		if err := dm.Client.WriteMessage(struct {
 			NameSpace       string `json:"namespace"`
 			Name            string `json:"name"`
 			NumberOfSamples int    `json:"numberOfSamples"`
 		}{
-			message.Header.ResourceName,
+			message.Header.Namespace,
 			message.Header.ResourceName,
 			dataSource.NumberOfSamples,
 		}, message.Header); err != nil {

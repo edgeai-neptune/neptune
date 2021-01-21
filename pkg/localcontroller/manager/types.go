@@ -8,6 +8,27 @@ const (
 	InsertOperation = "insert"
 	// DeleteOperation is the delete value
 	DeleteOperation = "delete"
+	// StatusOperation is the status value
+	StatusOperation = "status"
+
+	// TrainPhase is the train phase in incremental-learning-job
+	TrainPhase = "train"
+	// EvalPhase is the eval phase in incremental-learning-job
+	EvalPhase = "eval"
+	// DeployPhase is the deploy phase in incremental-learning-job
+	DeployPhase = "deploy"
+
+	// WorkerReadyStatus is the ready status about worker
+	WorkerReadyStatus = "ready"
+	// WorkerCompletedStatus is the completed status about worker
+	WorkerCompletedStatus = "completed"
+	// WorkerFailedStatus is the failed status about worker
+	WorkerFailedStatus = "failed"
+
+	// TriggerReadyStatus is the ready status about trigger in incremental-learning-job
+	TriggerReadyStatus = "ready"
+	// TriggerCompletedStatus is the completed status about trigger in incremental-learning-job
+	TriggerCompletedStatus = "completed"
 )
 
 // WorkerMessage defines message struct from worker
