@@ -118,7 +118,8 @@ const (
 	ILJobStageCondFailed    ILJobStageConditionType = "Failed"
 )
 
-// ILJobJobCondition describes current state of a job.
+// ILJobCondition describes current state of a job.
+// see https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties for details.
 type ILJobCondition struct {
 	// Type of job condition, Complete or Failed.
 	Type ILJobStageConditionType `json:"type"`
@@ -126,9 +127,9 @@ type ILJobCondition struct {
 	Status v1.ConditionStatus `json:"status"`
 	// Stage of the condition
 	Stage ILJobStage `json:"stage"`
-	// Last time the condition was checked.
+	// last time we got an update on a given condition
 	// +optional
-	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	LastHeartbeatTime metav1.Time `json:"lastHeartbeatTime,omitempty"`
 	// Last time the condition transit from one status to another.
 	// +optional
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
