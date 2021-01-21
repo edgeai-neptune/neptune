@@ -500,7 +500,7 @@ func (jc *IncrementalJobController) createPod(job *neptunev1.IncrementalLearning
 	if err != nil {
 		return err
 	}
-	basemodelPath = basemodel.Spec.ModelURL
+	basemodelPath = filepath.Dir(basemodel.Spec.ModelURL)
 
 	deploymodel, err := jc.client.Models(job.Namespace).Get(ctx, deployModelName, metav1.GetOptions{})
 	if err != nil {
@@ -664,7 +664,6 @@ func (jc *IncrementalJobController) generatePod(job *neptunev1.IncrementalLearni
 	var volumeMounts []v1.VolumeMount
 	var volumes []v1.Volume
 	var envs []v1.EnvVar
-	var imagePullPolicy v1.PullPolicy
 	var nodeName string
 	if workerType == "inference" {
 		nodeName = job.Spec.DeploySpec.NodeName
@@ -672,8 +671,6 @@ func (jc *IncrementalJobController) generatePod(job *neptunev1.IncrementalLearni
 		nodeName = job.Spec.NodeName
 	}
 	ctx := context.Background()
-	command := []string{"python"}
-	imagePullPolicy = v1.PullAlways
 	// get baseImgURL from imageHub based on user's configuration in job CRD
 	frameName := workerSpec.FrameworkType
 	frameVersion := workerSpec.FrameworkVersion
@@ -700,12 +697,10 @@ func (jc *IncrementalJobController) generatePod(job *neptunev1.IncrementalLearni
 			NodeName:      nodeName,
 			Containers: []v1.Container{
 				{Name: "container-" + job.Name + "-" + strings.ToLower(workerType) + "-" + utilrand.String(5),
-					ImagePullPolicy: imagePullPolicy,
-					Image:           baseImgURL,
-					Command:         command,
-					Args:            []string{workerSpec.ScriptBootFile},
-					Env:             envs,
-					VolumeMounts:    volumeMounts,
+					Image:        baseImgURL,
+					Args:         []string{workerSpec.ScriptBootFile},
+					Env:          envs,
+					VolumeMounts: volumeMounts,
 				}},
 			Volumes: volumes,
 		},

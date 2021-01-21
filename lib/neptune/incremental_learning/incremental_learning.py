@@ -47,19 +47,11 @@ def train(model, train_data, epochs, batch_size, class_names, input_shape,
     ckpt_result = {
         "format": "ckpt",
         "url": ckpt_model_url,
-        "metrics": {
-            "recall": None,
-            "precision": None
-        }
     }
 
     pb_result = {
         "format": "pb",
         "url": pb_model_url,
-        "metrics": {
-            "recall": None,
-            "precision": None
-        }
     }
 
     results = [ckpt_result, pb_result]

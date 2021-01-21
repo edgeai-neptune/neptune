@@ -63,6 +63,5 @@ spec:
         - key: "nms_threshold"
           value: "0.6"
 
-
   nodeName: "cloud0"
   outputDir: "/output"

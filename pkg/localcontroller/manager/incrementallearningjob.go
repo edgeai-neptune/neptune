@@ -611,6 +611,8 @@ func (im *IncrementalJobManager) triggerDeployTask(incrementalJob *IncrementalLe
 
 	for metric := range newMetrics {
 		if strings.HasPrefix(cond.Metric, metric) {
+			// keep the full metrics
+			metricDelta[metric] = newMetrics[metric]
 			var l []float64
 			for i := range newMetrics[metric] {
 				l = append(l, newMetrics[metric][i]-oldMetrics[metric][i])
@@ -814,8 +816,8 @@ func (im *IncrementalJobManager) handleData(incrementalJob *IncrementalLearningJ
 // createFile create a file
 func createFile(dir string, format string) (string, bool) {
 	switch format {
-	case "manifest":
-		return path.Join(dir, "data.manifest"), true
+	case "txt":
+		return path.Join(dir, "data.txt"), true
 	}
 	return "", false
 }
@@ -872,6 +874,7 @@ func (im *IncrementalJobManager) monitorWorker() {
 		if !ok {
 			break
 		}
+		klog.V(4).Infof("handling worker message %+v", workerMessage)
 
 		name := util.GetUniqueIdentifier(workerMessage.Namespace, workerMessage.OwnerName, workerMessage.OwnerKind)
 		header := wsclient.MessageHeader{
@@ -908,22 +911,27 @@ func (im *IncrementalJobManager) handleWorkerMessage(incrementalJob *Incremental
 	}
 
 	var models []*ModelMessage
-	for _, m := range workerMessage.Results {
-		bytes, err := json.Marshal(m["metrics"])
-		if err != nil {
-			return
-		}
+	for _, result := range workerMessage.Results {
+		metrics := map[string][]float64{}
+		if m, ok := result["metrics"]; ok {
+			bytes, err := json.Marshal(m)
+			if err != nil {
+				return
+			}
 
-		metric := map[string][]float64{}
-		err = json.Unmarshal(bytes, &metric)
-		if err != nil {
-			return
+			err = json.Unmarshal(bytes, &metrics)
+			if err != nil {
+				klog.Warningf("failed to unmarshal the worker(name=%s) metrics %v, err: %v",
+					workerMessage.Name,
+					m,
+					err)
+			}
 		}
 
 		model := ModelMessage{
-			m["format"].(string),
-			m["url"].(string),
-			metric}
+			result["format"].(string),
+			result["url"].(string),
+			metrics}
 		models = append(models, &model)
 	}
 

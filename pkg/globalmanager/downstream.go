@@ -91,7 +91,10 @@ func (dc *DownstreamController) syncIncrementalJob(eventType watch.EventType, jo
 		}
 
 		for modelName := range models {
-			dc.syncModelWithName(nodeName, modelName, job.Namespace)
+			err := dc.syncModelWithName(nodeName, modelName, job.Namespace)
+			if err != nil {
+				klog.Warningf("Error to sync model %s when sync incremental learning job %s to node %s: %v", modelName, job.Name, nodeName, err)
+			}
 		}
 	} else if eventType == watch.Deleted {
 		// noop
