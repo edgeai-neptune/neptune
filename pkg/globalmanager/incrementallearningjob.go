@@ -403,7 +403,7 @@ func NewIncrementalJobCondition(conditionType neptunev1.ILJobStageConditionType,
 	return neptunev1.ILJobCondition{
 		Type:               conditionType,
 		Status:             v1.ConditionTrue,
-		LastProbeTime:      metav1.Now(),
+		LastHeartbeatTime:  metav1.Now(),
 		LastTransitionTime: metav1.Now(),
 		Reason:             "",
 		Message:            "",

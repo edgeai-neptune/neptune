@@ -218,7 +218,7 @@ func (uc *UpstreamController) updateIncrementalLearningFromEdge(name, namespace,
 	cond := neptunev1.ILJobCondition{
 		Type:               neptunev1.ILJobStageCondReady,
 		Status:             v1.ConditionTrue,
-		LastProbeTime:      metav1.Now(),
+		LastHeartbeatTime:  metav1.Now(),
 		LastTransitionTime: metav1.Now(),
 		Data:               string(condDataBytes),
 	}
