@@ -4,6 +4,8 @@ package v1alpha1
 
 type DatasetExpansion interface{}
 
+type FederatedLearningJobExpansion interface{}
+
 type IncrementalLearningJobExpansion interface{}
 
 type JointInferenceServiceExpansion interface{}

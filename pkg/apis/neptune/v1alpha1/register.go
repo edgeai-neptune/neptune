@@ -37,6 +37,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ModelList{},
 		&JointInferenceService{},
 		&JointInferenceServiceList{},
+		&FederatedLearningJob{},
+		&FederatedLearningJobList{},
 		&IncrementalLearningJob{},
 		&IncrementalLearningJobList{},
 	)

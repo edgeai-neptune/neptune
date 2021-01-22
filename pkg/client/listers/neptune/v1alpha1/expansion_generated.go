@@ -10,6 +10,14 @@ type DatasetListerExpansion interface{}
 // DatasetNamespaceLister.
 type DatasetNamespaceListerExpansion interface{}
 
+// FederatedLearningJobListerExpansion allows custom methods to be added to
+// FederatedLearningJobLister.
+type FederatedLearningJobListerExpansion interface{}
+
+// FederatedLearningJobNamespaceListerExpansion allows custom methods to be added to
+// FederatedLearningJobNamespaceLister.
+type FederatedLearningJobNamespaceListerExpansion interface{}
+
 // IncrementalLearningJobListerExpansion allows custom methods to be added to
 // IncrementalLearningJobLister.
 type IncrementalLearningJobListerExpansion interface{}
