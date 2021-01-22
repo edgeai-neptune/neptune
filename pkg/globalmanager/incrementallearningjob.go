@@ -500,14 +500,14 @@ func (jc *IncrementalJobController) createPod(job *neptunev1.IncrementalLearning
 		return fmt.Errorf("failed to get initial model %s: %w",
 			initialModelName, err)
 	}
-	basemodelPath = filepath.Dir(basemodel.Spec.ModelURL)
+	basemodelPath = filepath.Dir(basemodel.Spec.URL)
 
 	deploymodel, err := jc.client.Models(job.Namespace).Get(ctx, deployModelName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get deploy model %s: %w",
 			deployModelName, err)
 	}
-	deploymodelPath = filepath.Dir(deploymodel.Spec.ModelURL)
+	deploymodelPath = filepath.Dir(deploymodel.Spec.URL)
 
 	dataset, err := jc.client.Datasets(job.Namespace).Get(ctx, incrementalDatasetName, metav1.GetOptions{})
 	if err != nil {
@@ -625,7 +625,7 @@ func (jc *IncrementalJobController) createInferPod(job *neptunev1.IncrementalLea
 		return fmt.Errorf("failed to get infer model %s: %w",
 			infermodelName, err)
 	}
-	inferModelPath := inferModel.Spec.ModelURL
+	inferModelPath := inferModel.Spec.URL
 
 	// convert crd to JSON, and put them into env of container
 	inferModelParent := filepath.Dir(inferModelPath)

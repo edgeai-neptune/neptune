@@ -636,7 +636,7 @@ func (im *IncrementalJobManager) loadModels(job *IncrementalLearningJob) error {
 		jobConfig.TrainModel.Model = new(ModelInfo)
 		jobConfig.TrainModel.TrainedModel = map[string]string{}
 		format := initialModel.Spec.Format
-		url := initialModel.Spec.ModelURL
+		url := initialModel.Spec.URL
 		jobConfig.TrainModel.Model.Format = format
 		jobConfig.TrainModel.Model.URL = url
 		jobConfig.TrainModel.TrainedModel[format] = url
@@ -650,7 +650,7 @@ func (im *IncrementalJobManager) loadModels(job *IncrementalLearningJob) error {
 
 		jobConfig.DeployModel = new(ModelInfo)
 		jobConfig.DeployModel.Format = evalModel.Spec.Format
-		jobConfig.DeployModel.URL = evalModel.Spec.ModelURL
+		jobConfig.DeployModel.URL = evalModel.Spec.URL
 	}
 	return nil
 }
