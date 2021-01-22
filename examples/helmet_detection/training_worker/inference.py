@@ -139,8 +139,8 @@ def run():
         create_output_fetch=create_output_fetch
     )
 
-    # create joint inference object
-    inference_instance = neptune.incremental_learning.JointInference(model)
+    # create inference object
+    inference_instance = neptune.incremental_learning.Inference(model)
 
     # use video streams for testing
     camera = cv2.VideoCapture(camera_address)

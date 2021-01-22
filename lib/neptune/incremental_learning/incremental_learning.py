@@ -134,7 +134,7 @@ class InferenceResult:
         self.infer_result = infer_result
 
 
-class JointInference:
+class Inference:
     def __init__(self, model: TSModel, hard_example_mining_algorithm=None):
         if hard_example_mining_algorithm is None:
             hem_name = BaseConfig.hem_name
