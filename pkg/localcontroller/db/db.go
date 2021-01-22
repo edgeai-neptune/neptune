@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 
@@ -15,35 +16,45 @@ import (
 type Resource struct {
 	gorm.Model
 	Name       string `gorm:"unique"`
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	MetaData   string `json:"metadata"`
-	Spec       string `json:"spec"`
+	TypeMeta   string
+	ObjectMeta string
+	Spec       string
 }
 
 // SaveResource saves resource info in db
-func SaveResource(resource *Resource) error {
+func SaveResource(name string, typeMeta, objectMeta, spec interface{}) error {
 	var err error
 	dbClient := getClient()
 
 	r := Resource{}
 
-	queryResult := dbClient.Where("name = ?", resource.Name).First(&r)
+	typeMetaData, _ := json.Marshal(typeMeta)
+	objectMetaData, _ := json.Marshal(objectMeta)
+	specData, _ := json.Marshal(spec)
+
+	queryResult := dbClient.Where("name = ?", name).First(&r)
 
 	if queryResult.RowsAffected == 0 {
-		if err = dbClient.Create(resource).Error; err != nil {
-			klog.Errorf("saved resource(name=%s) failed, error: %v", resource.Name, err)
+		newR := &Resource{
+			Name:       name,
+			TypeMeta:   string(typeMetaData),
+			ObjectMeta: string(objectMetaData),
+			Spec:       string(specData),
+		}
+		if err = dbClient.Create(newR).Error; err != nil {
+			klog.Errorf("failed to save resource(name=%s): %v", name, err)
 			return err
 		}
+		klog.Infof("saved resource(name=%s)", name)
 	} else {
-		r.APIVersion = resource.APIVersion
-		r.Kind = resource.Kind
-		r.MetaData = resource.MetaData
-		r.Spec = resource.Spec
+		r.TypeMeta = string(typeMetaData)
+		r.ObjectMeta = string(objectMetaData)
+		r.Spec = string(specData)
 		if err := dbClient.Save(&r).Error; err != nil {
-			klog.Errorf("Update resource(name=%s) failed, error: %v", resource.Name, err)
+			klog.Errorf("failed to update resource(name=%s): %v", name, err)
 			return err
 		}
+		klog.Infof("updated resource(name=%s)", name)
 	}
 
 	return nil

@@ -5,6 +5,7 @@ import (
 
 	"k8s.io/klog/v2"
 
+	neptunev1 "github.com/edgeai-neptune/neptune/pkg/apis/neptune/v1alpha1"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/db"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/util"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/wsclient"
@@ -14,14 +15,6 @@ import (
 type JointInferenceManager struct {
 	Client               *wsclient.Client
 	WorkerMessageChannel chan WorkerMessage
-}
-
-// JointInference defines config for joint-inference-service
-type JointInference struct {
-	APIVersion string                 `json:"apiVersion"`
-	Kind       string                 `json:"kind"`
-	MetaData   map[string]interface{} `json:"metadata"`
-	Spec       map[string]interface{} `json:"spec"`
 }
 
 const (
@@ -104,31 +97,13 @@ func (jm *JointInferenceManager) monitorWorker() {
 
 // insertService inserts joint-inference-service config in db
 func (jm *JointInferenceManager) insertService(name string, payload []byte) error {
-	jointInference := JointInference{}
+	jointInference := neptunev1.JointInferenceService{}
 
 	if err := json.Unmarshal(payload, &jointInference); err != nil {
 		return err
 	}
 
-	metaData, err := json.Marshal(jointInference.MetaData)
-	if err != nil {
-		return err
-	}
-
-	spec, err := json.Marshal(jointInference.Spec)
-	if err != nil {
-		return err
-	}
-
-	r := db.Resource{
-		Name:       name,
-		APIVersion: jointInference.APIVersion,
-		Kind:       jointInference.Kind,
-		MetaData:   string(metaData),
-		Spec:       string(spec),
-	}
-
-	if err = db.SaveResource(&r); err != nil {
+	if err := db.SaveResource(name, jointInference.TypeMeta, jointInference.ObjectMeta, jointInference.Spec); err != nil {
 		return err
 	}
 

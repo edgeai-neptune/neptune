@@ -5,6 +5,7 @@ import (
 
 	"k8s.io/klog/v2"
 
+	neptunev1 "github.com/edgeai-neptune/neptune/pkg/apis/neptune/v1alpha1"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/db"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/util"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/wsclient"
@@ -12,27 +13,13 @@ import (
 
 // ModelManager defines model manager
 type ModelManager struct {
-	Client          *wsclient.Client
-	ModelChannelMap map[string]chan Model
-}
-
-// Model defines config for model
-type Model struct {
-	APIVersion string     `json:"apiVersion"`
-	Kind       string     `json:"kind"`
-	MetaData   *MetaData  `json:"metadata"`
-	Spec       *ModelSpec `json:"spec"`
-}
-
-// ModelSpec defines model spec
-type ModelSpec struct {
-	Format string `json:"format"`
-	URL    string `json:"url"`
+	Client   *wsclient.Client
+	ModelMap map[string]neptunev1.Model
 }
 
 const (
-	// ModelChannelCacheSize is size of channel cache
-	ModelChannelCacheSize = 100
+	// ModelCacheSize is size of cache
+	ModelCacheSize = 100
 	// ModelResourceKind is kind of dataset resource
 	ModelResourceKind = "model"
 )
@@ -40,8 +27,8 @@ const (
 // NewModelManager creates a model manager
 func NewModelManager(client *wsclient.Client) (*ModelManager, error) {
 	mm := ModelManager{
-		ModelChannelMap: make(map[string]chan Model),
-		Client:          client,
+		ModelMap: make(map[string]neptunev1.Model),
+		Client:   client,
 	}
 
 	if err := mm.initModelManager(); err != nil {
@@ -63,22 +50,16 @@ func (mm *ModelManager) initModelManager() error {
 	return nil
 }
 
-// GetModelChannel gets model channel
-func (mm *ModelManager) GetModelChannel(name string) chan Model {
-	m, ok := mm.ModelChannelMap[name]
-	if !ok {
-		return nil
-	}
-	return m
+// GetModel gets model
+func (mm *ModelManager) GetModel(name string) (neptunev1.Model, bool) {
+	model, ok := mm.ModelMap[name]
+	return model, ok
 }
 
-// addNewModel adds model to the channel
-func (mm *ModelManager) addNewModel(name string, model Model) {
-	if _, ok := mm.ModelChannelMap[name]; !ok {
-		mm.ModelChannelMap[name] = make(chan Model, ModelChannelCacheSize)
-	}
+// addNewModel adds model
+func (mm *ModelManager) addNewModel(name string, model neptunev1.Model) {
 
-	mm.ModelChannelMap[name] <- model
+	mm.ModelMap[name] = model
 }
 
 // handleMessage handles the message from GlobalManager
@@ -99,37 +80,19 @@ func (mm *ModelManager) handleMessage(message *wsclient.Message) {
 
 // insertModel inserts model config to db
 func (mm *ModelManager) insertModel(name string, payload []byte) error {
-	model := Model{}
+	model := neptunev1.Model{}
 
 	if err := json.Unmarshal(payload, &model); err != nil {
 		return err
 	}
 
-	metaData, err := json.Marshal(model.MetaData)
-	if err != nil {
-		return err
-	}
-
-	spec, err := json.Marshal(model.Spec)
-	if err != nil {
-		return err
-	}
-
-	r := db.Resource{
-		Name:       name,
-		APIVersion: model.APIVersion,
-		Kind:       model.Kind,
-		MetaData:   string(metaData),
-		Spec:       string(spec),
-	}
-
-	if err = db.SaveResource(&r); err != nil {
+	if err := db.SaveResource(name, model.TypeMeta, model.ObjectMeta, model.Spec); err != nil {
 		return err
 	}
 
 	mm.addNewModel(name, model)
 
-	return err
+	return nil
 }
 
 // deleteModel deletes model in db
@@ -137,11 +100,7 @@ func (mm *ModelManager) deleteModel(name string) error {
 	if err := db.DeleteResource(name); err != nil {
 		return err
 	}
-
-	if modelChannel := mm.ModelChannelMap[name]; modelChannel != nil {
-		close(modelChannel)
-		delete(mm.ModelChannelMap, name)
-	}
+	delete(mm.ModelMap, name)
 
 	return nil
 }

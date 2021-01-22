@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -498,19 +497,22 @@ func (jc *IncrementalJobController) createPod(job *neptunev1.IncrementalLearning
 
 	basemodel, err := jc.client.Models(job.Namespace).Get(ctx, initialModelName, metav1.GetOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get initial model %s: %w",
+			initialModelName, err)
 	}
 	basemodelPath = filepath.Dir(basemodel.Spec.ModelURL)
 
 	deploymodel, err := jc.client.Models(job.Namespace).Get(ctx, deployModelName, metav1.GetOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get deploy model %s: %w",
+			deployModelName, err)
 	}
 	deploymodelPath = filepath.Dir(deploymodel.Spec.ModelURL)
 
 	dataset, err := jc.client.Datasets(job.Namespace).Get(ctx, incrementalDatasetName, metav1.GetOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get dataset %s: %w",
+			incrementalDatasetName, err)
 	}
 	datasetPath = dataset.Spec.URL
 
@@ -581,6 +583,7 @@ func (jc *IncrementalJobController) createPod(job *neptunev1.IncrementalLearning
 			"JOB_NAME":          job.Name,
 			"WORKER_NAME":       "train-worker-" + utilrand.String(5),
 			"PARAMETERS":        trainParameterString,
+			"LC_SERVER":         jc.cfg.LC.Server,
 		}
 	} else {
 		workerName = "Eval"
@@ -600,6 +603,7 @@ func (jc *IncrementalJobController) createPod(job *neptunev1.IncrementalLearning
 			"JOB_NAME":         job.Name,
 			"WORKER_NAME":      "eval-worker-" + utilrand.String(5),
 			"PARAMETERS":       evalParameterString,
+			"LC_SERVER":        jc.cfg.LC.Server,
 		}
 	}
 	// create pod based on podtype
@@ -614,12 +618,11 @@ func (jc *IncrementalJobController) createInferPod(job *neptunev1.IncrementalLea
 	ctx := context.Background()
 	infermodelName := job.Spec.DeploySpec.Model.Name
 	inferModel, err := jc.client.Models(job.Namespace).Get(ctx, infermodelName, metav1.GetOptions{})
-	var inferModelPath string
 	if err != nil {
-		inferModelPath = "/model"
-	} else {
-		inferModelPath = inferModel.Spec.ModelURL
+		return fmt.Errorf("failed to get infer model %s: %w",
+			infermodelName, err)
 	}
+	inferModelPath := inferModel.Spec.ModelURL
 
 	// convert crd to JSON, and put them into env of container
 	inferModelParent := filepath.Dir(inferModelPath)
@@ -637,7 +640,6 @@ func (jc *IncrementalJobController) createInferPod(job *neptunev1.IncrementalLea
 	inferModelURL := dataPrefix + inferModelPath
 
 	// Configure container mounting and Env information by initial ContainerPara
-	lcport := 30000
 	var inferContainer *ContainerPara = new(ContainerPara)
 	inferContainer.volumeMountList = []string{inferCodeConPath, inferModelConPath}
 	inferContainer.volumeList = []string{inferCodePath, inferModelParent}
@@ -648,15 +650,12 @@ func (jc *IncrementalJobController) createInferPod(job *neptunev1.IncrementalLea
 		"MODEL_URL":             inferModelURL,
 		"NAMESPACE":             job.Namespace,
 		"HARD_SAMPLE_ALGORITHM": job.Spec.DeploySpec.HardExampleMining.Name,
-		"LC_PORT":               strconv.Itoa(lcport),
+		"LC_SERVER":             jc.cfg.LC.Server,
 	}
 
 	// create edge pod
 	err = jc.generatePod(job, inferWorkerSpec, "inference", inferContainer)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // generatePod forms a pod for train and eval for incrementaljob
@@ -727,8 +726,19 @@ func NewIncrementalJobController(cfg *config.ControllerConfig) (FeatureControlle
 		namespace = metav1.NamespaceAll
 	}
 	kubeClient, err := utils.KubeClient()
-	kubecfg, _ := utils.KubeConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	kubecfg, err := utils.KubeConfig()
+	if err != nil {
+		return nil, err
+	}
 	crdclient, err := clientset.NewForConfig(kubecfg)
+	if err != nil {
+		return nil, err
+	}
+
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, time.Second*30, kubeinformers.WithNamespace(namespace))
 
 	podInformer := kubeInformerFactory.Core().V1().Pods()

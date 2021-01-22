@@ -18,6 +18,9 @@ const (
 	// DeployPhase is the deploy phase in incremental-learning-job
 	DeployPhase = "deploy"
 
+	// WorkerWaitingStatus is the waiting status about worker
+	WorkerWaitingStatus = "waiting"
+
 	// WorkerReadyStatus is the ready status about worker
 	WorkerReadyStatus = "ready"
 	// WorkerCompletedStatus is the completed status about worker
@@ -49,11 +52,27 @@ type MetaData struct {
 	Namespace string `json:"namespace"`
 }
 
+// ModelInfo defines model
+type ModelInfo struct {
+	Format  string               `json:"format"`
+	URL     string               `json:"url"`
+	Metrics map[string][]float64 `json:"metrics,omitempty"`
+}
+
 // UpstreamMessage defines send message to GlobalManager
 type UpstreamMessage struct {
 	Phase  string        `json:"phase"`
 	Status string        `json:"status"`
+	Input  *WorkerInput  `json:"input,omitempty"`
 	Output *WorkerOutput `json:"output"`
+}
+
+type WorkerInput struct {
+	// Only one model cases
+	Models []ModelInfo `json:"models,omitempty"`
+
+	DataURL   string `json:"dataURL,omitempty"`
+	OutputDir string `json:"outputDir,omitempty"`
 }
 
 // WorkerOutput defines output information of worker
