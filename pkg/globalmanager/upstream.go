@@ -175,9 +175,111 @@ func (uc *UpstreamController) updateJointInferenceFromEdge(name, namespace, oper
 	return nil
 }
 
+func (uc *UpstreamController) updateModelMetrics(name, namespace string, metrics []neptunev1.Metric) error {
+	client := uc.client.Models(namespace)
+
+	return retryUpdateStatus(name, namespace, (func() error {
+		model, err := client.Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		now := metav1.Now()
+		model.Status.UpdateTime = &now
+		model.Status.Metrics = metrics
+		_, err = client.UpdateStatus(context.TODO(), model, metav1.UpdateOptions{})
+		return err
+	}))
+}
+
+func (uc *UpstreamController) updateModelMetricsByFederatedName(name, namespace string, metrics []neptunev1.Metric) error {
+	client := uc.client.FederatedLearningJobs(namespace)
+	var err error
+	federatedLearningJob, err := client.Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		// federated crd not found
+		return err
+	}
+	modelName := federatedLearningJob.Spec.AggregationWorker.Model.Name
+	return uc.updateModelMetrics(modelName, namespace, metrics)
+}
+
+func (uc *UpstreamController) appendFederatedLearningJobStatusCondition(name, namespace string, cond neptunev1.FLJobCondition) error {
+	client := uc.client.FederatedLearningJobs(namespace)
+
+	return retryUpdateStatus(name, namespace, (func() error {
+		job, err := client.Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		job.Status.Conditions = append(job.Status.Conditions, cond)
+		_, err = client.UpdateStatus(context.TODO(), job, metav1.UpdateOptions{})
+		return err
+	}))
+}
+
+// updateFederatedLearningJobFromEdge updates the federated job's status
+func (uc *UpstreamController) updateFederatedLearningJobFromEdge(name, namespace, operation string, content []byte) (err error) {
+	err = checkUpstreamOperation(operation)
+	if err != nil {
+		return err
+	}
+
+	// JobInfo defines the job information
+	type JobInfo struct {
+		// Current training round
+		CurrentRound int    `json:"currentRound"`
+		UpdateTime   string `json:"updateTime"`
+	}
+
+	// Output defines job output information
+	type Output struct {
+		Models  []Model  `json:"models"`
+		JobInfo *JobInfo `json:"ownerInfo"`
+	}
+
+	var status struct {
+		Phase  string  `json:"phase"`
+		Status string  `json:"status"`
+		Output *Output `json:"output"`
+	}
+
+	err = json.Unmarshal(content, &status)
+	if err != nil {
+		err = newUnmarshalError(namespace, name, operation, content)
+		return
+	}
+
+	output := status.Output
+
+	if output != nil {
+		// Update the model's metrics
+		if len(output.Models) > 0 {
+			// only one model
+			model := output.Models[0]
+			metrics := convertToMetrics(model.Metrics)
+			if len(metrics) > 0 {
+				uc.updateModelMetricsByFederatedName(name, namespace, metrics)
+			}
+		}
+
+		jobInfo := output.JobInfo
+		// update job info if having any info
+		if jobInfo != nil && jobInfo.CurrentRound > 0 {
+			// Find a good place to save the progress info
+			// TODO: more meaningful reason/message
+			reason := "DoTraining"
+			message := fmt.Sprintf("Round %v reaches at %s", jobInfo.CurrentRound, jobInfo.UpdateTime)
+			cond := NewFLJobCondition(neptunev1.FLJobCondTraining, reason, message)
+			uc.appendFederatedLearningJobStatusCondition(name, namespace, cond)
+		}
+	}
+
+	return nil
+}
+
 func (uc *UpstreamController) appendIncrementalLearningJobStatusCondition(name, namespace string, cond neptunev1.ILJobCondition) error {
 	client := uc.client.IncrementalLearningJobs(namespace)
-
 	return retryUpdateStatus(name, namespace, (func() error {
 		job, err := client.Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
@@ -193,57 +295,56 @@ func (uc *UpstreamController) appendIncrementalLearningJobStatusCondition(name, 
 func (uc *UpstreamController) updateIncrementalLearningFromEdge(name, namespace, operation string, content []byte) error {
 	err := checkUpstreamOperation(operation)
 	if err != nil {
+		var jobStatus struct {
+			Phase  string `json:"phase"`
+			Status string `json:"status"`
+		}
+
+		err = json.Unmarshal(content, &jobStatus)
+		if err != nil {
+			return newUnmarshalError(namespace, name, operation, content)
+		}
+
+		// Get the condition data.
+		// Here unmarshal and marshal immediately to skip the unnecessary fields
+		var condData IncrementalCondData
+		err = json.Unmarshal(content, &condData)
+		if err != nil {
+			return newUnmarshalError(namespace, name, operation, content)
+		}
+		condDataBytes, _ := json.Marshal(&condData)
+
+		cond := neptunev1.ILJobCondition{
+			Type:               neptunev1.ILJobStageCondReady,
+			Status:             v1.ConditionTrue,
+			LastHeartbeatTime:  metav1.Now(),
+			LastTransitionTime: metav1.Now(),
+			Data:               string(condDataBytes),
+		}
+
+		switch strings.ToLower(jobStatus.Phase) {
+		case "train":
+			cond.Stage = neptunev1.ILJobTrain
+		case "eval":
+			cond.Stage = neptunev1.ILJobEval
+		case "deploy":
+			cond.Stage = neptunev1.ILJobDeploy
+		}
+
+		switch strings.ToLower(jobStatus.Status) {
+		case "ready":
+			cond.Type = neptunev1.ILJobStageCondReady
+		case "completed":
+			cond.Type = neptunev1.ILJobStageCondCompleted
+		case "failed":
+			cond.Type = neptunev1.ILJobStageCondFailed
+		}
+
+		err = uc.appendIncrementalLearningJobStatusCondition(name, namespace, cond)
+		if err != nil {
+			return fmt.Errorf("failed to append condition, err:%+w", err)
+		}
 		return err
-	}
-
-	var jobStatus struct {
-		Phase  string `json:"phase"`
-		Status string `json:"status"`
-	}
-
-	err = json.Unmarshal(content, &jobStatus)
-	if err != nil {
-		return newUnmarshalError(namespace, name, operation, content)
-	}
-
-	// Get the condition data.
-	// Here unmarshal and marshal immediately to skip the unnecessary fields
-	var condData IncrementalCondData
-	err = json.Unmarshal(content, &condData)
-	if err != nil {
-		return newUnmarshalError(namespace, name, operation, content)
-	}
-	condDataBytes, _ := json.Marshal(&condData)
-
-	cond := neptunev1.ILJobCondition{
-		Type:               neptunev1.ILJobStageCondReady,
-		Status:             v1.ConditionTrue,
-		LastHeartbeatTime:  metav1.Now(),
-		LastTransitionTime: metav1.Now(),
-		Data:               string(condDataBytes),
-	}
-
-	switch strings.ToLower(jobStatus.Phase) {
-	case "train":
-		cond.Stage = neptunev1.ILJobTrain
-	case "eval":
-		cond.Stage = neptunev1.ILJobEval
-	case "deploy":
-		cond.Stage = neptunev1.ILJobDeploy
-	}
-
-	switch strings.ToLower(jobStatus.Status) {
-	case "ready":
-		cond.Type = neptunev1.ILJobStageCondReady
-	case "completed":
-		cond.Type = neptunev1.ILJobStageCondCompleted
-	case "failed":
-		cond.Type = neptunev1.ILJobStageCondFailed
-	}
-
-	err = uc.appendIncrementalLearningJobStatusCondition(name, namespace, cond)
-	if err != nil {
-		return fmt.Errorf("failed to append condition, err:%+w", err)
 	}
 	return nil
 }
@@ -309,8 +410,9 @@ func NewUpstreamController(cfg *config.ControllerConfig) (FeatureControllerI, er
 	// model update will be triggered by the corresponding training feature
 	uc.updateHandlers = map[string]updateHandler{
 		"dataset":                uc.updateDatasetFromEdge,
-		"incrementallearningjob": uc.updateIncrementalLearningFromEdge,
 		"jointinferenceservice":  uc.updateJointInferenceFromEdge,
+		"federatedlearningjob":   uc.updateFederatedLearningJobFromEdge,
+		"incrementallearningjob": uc.updateIncrementalLearningFromEdge,
 	}
 
 	return uc, nil

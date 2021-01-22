@@ -58,7 +58,6 @@ func (mm *ModelManager) GetModel(name string) (neptunev1.Model, bool) {
 
 // addNewModel adds model
 func (mm *ModelManager) addNewModel(name string, model neptunev1.Model) {
-
 	mm.ModelMap[name] = model
 }
 

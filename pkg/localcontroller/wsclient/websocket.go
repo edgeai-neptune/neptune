@@ -151,8 +151,6 @@ func (c *Client) sendMessage(stop chan struct{}) {
 			message.Header, c.Options.GMAddr)
 		klog.V(4).Infof("client sent message content: %s to global manager(address: %s)",
 			message.Content, c.Options.GMAddr)
-		klog.Infof("client sent message content: %s to global manager(address: %s)",
-			message.Content, c.Options.GMAddr)
 	}
 }
 

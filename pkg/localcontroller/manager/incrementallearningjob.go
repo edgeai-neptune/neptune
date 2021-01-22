@@ -314,7 +314,6 @@ func (im *IncrementalJobManager) startJob(name string, message *wsclient.Message
 			return
 
 		case <-time.After(JobIterationIntervalSeconds * time.Second):
-
 		}
 
 		switch jobConfig.Phase {
@@ -501,7 +500,7 @@ func (im *IncrementalJobManager) triggerDeployTask(job *IncrementalLearningJob) 
 	jobConfig := job.JobConfig
 
 	if len(jobConfig.EvalResult) != 2 {
-		return false, fmt.Errorf("expected 2 evaluation results e, actual: %s", len(jobConfig.EvalResult))
+		return false, fmt.Errorf("expected 2 evaluation results e, actual: %d", len(jobConfig.EvalResult))
 	}
 
 	newMetrics, oldMetrics := jobConfig.EvalResult[0].Metrics, jobConfig.EvalResult[1].Metrics
@@ -537,7 +536,6 @@ func (im *IncrementalJobManager) triggerDeployTask(job *IncrementalLearningJob) 
 	}
 
 	return deployTrigger.Trigger(metricDelta), nil
-
 }
 
 // deployModel deploys model
@@ -688,7 +686,6 @@ func (im *IncrementalJobManager) handleData(job *IncrementalLearningJob) error {
 	go func() {
 		tick := time.NewTicker(DatasetHandlerIntervalSeconds * time.Second)
 		for {
-
 			if dataset.DataSource != nil && len(dataset.DataSource.TrainSamples) > jobConfig.DataSamples.Numbers {
 				samples := dataset.DataSource.TrainSamples
 				trainNum := int(job.Spec.Dataset.TrainProb * float64(len(samples)-jobConfig.DataSamples.Numbers))

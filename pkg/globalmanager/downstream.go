@@ -52,6 +52,23 @@ func (dc *DownstreamController) syncJointInferenceService(eventType watch.EventT
 	return dc.messageLayer.SendResourceObject(nodeName, eventType, joint)
 }
 
+// syncFederatedLearningJob syncs the federated resources
+func (dc *DownstreamController) syncFederatedLearningJob(eventType watch.EventType, job *neptunev1.FederatedLearningJob) error {
+	// broadcast to all nodes specified in spec
+	nodeset := make(map[string]bool)
+	for _, trainingWorker := range job.Spec.TrainingWorkers {
+		// Here only propagate to the nodes with non empty name
+		if len(trainingWorker.NodeName) > 0 {
+			nodeset[trainingWorker.NodeName] = true
+		}
+	}
+
+	for nodeName := range nodeset {
+		dc.messageLayer.SendResourceObject(nodeName, eventType, job)
+	}
+	return nil
+}
+
 // syncModelWithName will sync the model to the specified node.
 // Now called when creating the incrementaljob.
 func (dc *DownstreamController) syncModelWithName(nodeName, modelName, namespace string) error {
@@ -139,6 +156,15 @@ func (dc *DownstreamController) sync(stopCh <-chan struct{}) {
 				name = t.Name
 				err = dc.syncJointInferenceService(e.Type, t)
 
+			case (*neptunev1.FederatedLearningJob):
+				if len(t.Kind) == 0 {
+					t.Kind = "FederatedLearningJob"
+				}
+				kind = t.Kind
+				namespace = t.Namespace
+				name = t.Name
+				err = dc.syncFederatedLearningJob(e.Type, t)
+
 			case (*neptunev1.IncrementalLearningJob):
 				if len(t.Kind) == 0 {
 					t.Kind = "IncrementalLearningJob"
@@ -194,6 +220,7 @@ func (dc *DownstreamController) watch(stopCh <-chan struct{}) {
 	for resourceName, object := range map[string]runtime.Object{
 		"datasets":                &neptunev1.Dataset{},
 		"jointinferenceservices":  &neptunev1.JointInferenceService{},
+		"federatedlearningjobs":   &neptunev1.FederatedLearningJob{},
 		"incrementallearningjobs": &neptunev1.IncrementalLearningJob{},
 	} {
 		lw := cache.NewListWatchFromClient(client, resourceName, namespace, fields.Everything())

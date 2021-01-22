@@ -536,6 +536,9 @@ func (jc *IncrementalJobController) createPod(job *neptunev1.IncrementalLearning
 	klog.V(2).Infof("incrementallearning job %v/%v data condition:%s", job.Namespace, job.Name, condDataStr)
 	var cond IncrementalCondData
 	(&cond).Unmarshal([]byte(condDataStr))
+	if cond.Input == nil {
+		return fmt.Errorf("empty input from condData")
+	}
 	dataURL := cond.Input.DataURL
 	inputmodelURLs := cond.GetInputModelURLs()
 	outputmodelURL := cond.Input.OutputDir
