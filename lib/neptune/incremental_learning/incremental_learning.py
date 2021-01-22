@@ -1,7 +1,6 @@
 import logging
-import os
 
-import cv2
+import os
 import tensorflow as tf
 
 import neptune
@@ -10,8 +9,8 @@ from neptune.common.constant import K8sResourceKindStatus, K8sResourceKind
 from neptune.common.utils import clean_folder, remove_path_prefix
 from neptune.hard_example_mining import CrossEntropyFilter, IBTFilter, \
     ThresholdFilter
-from neptune.lc_client import LCClient
 from neptune.joint_inference import TSLittleModel
+from neptune.lc_client import LCClient
 
 LOG = logging.getLogger(__name__)
 
@@ -20,6 +19,7 @@ class IncrementalConfig(BaseConfig):
     def __init__(self):
         BaseConfig.__init__(self)
         self.model_urls = os.getenv("MODEL_URLS")
+        self.base_model_url = os.getenv("BASE_MODEL_URL")
 
 
 def train(model, train_data, epochs, batch_size, class_names, input_shape,
@@ -82,21 +82,14 @@ def evaluate(model, test_data, class_names, input_shape):
     :param input_shape: the input shape of model
     """
     il_config = IncrementalConfig()
-    input_shape_ = tuple(int(shape) for shape in input_shape.split(','))
-
-    class_names_ = [label.strip() for label in class_names.split(',')]
-    labels_num = len(class_names_)
-
-    val_annotations_file = il_config.test_dataset_url
 
     results = []
     for model_url in il_config.model_urls.split(';'):
         precision, recall, all_precisions, all_recalls = model(
-            data_path=il_config.data_path_prefix,
             model_path=model_url,
-            val_txt=val_annotations_file,
-            labels_num=labels_num,
-            input_shape=input_shape_)
+            test_dataset=test_data,
+            class_names=class_names,
+            input_shape=input_shape)
 
         result = {
             "format": "pb",
