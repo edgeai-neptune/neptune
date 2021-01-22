@@ -161,15 +161,19 @@ func NewTrigger(trigger map[string]interface{}) (Base, error) {
 		checkPeriodSeconds = 60
 	}
 	_ = checkPeriodSeconds
-	_, ok = trigger["condition"]
+	condVal, ok := trigger["condition"]
 	var conditionTrigger Base
 	if ok {
-		cond := trigger["condition"].(map[string]interface{})
+		cond, ok := condVal.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid condition value:%v",
+				condVal)
+		}
 
 		threshold, err := convertFloat(cond["threshold"])
 
 		if err != nil {
-			return nil, fmt.Errorf("invalid threshold value")
+			return nil, fmt.Errorf("invalid threshold value:%v", cond["threshold"])
 		}
 		conditionTrigger = &BinaryTrigger{
 			Operator:  cond["operator"].(string),

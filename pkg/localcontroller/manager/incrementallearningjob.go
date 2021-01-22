@@ -24,7 +24,7 @@ import (
 type IncrementalLearningJob struct {
 	neptunev1.IncrementalLearningJob
 	JobConfig *JobConfig
-	Dataset   *neptunev1.Dataset
+	Dataset   *Dataset
 	Done      chan struct{}
 }
 
@@ -34,6 +34,8 @@ type JobConfig struct {
 	Version          int
 	Phase            string
 	WorkerStatus     string
+	TrainTrigger     trigger.Base
+	DeployTrigger    trigger.Base
 	TriggerStatus    string
 	TriggerTime      time.Time
 	TrainDataURL     string
@@ -76,7 +78,6 @@ type IncrementalJobManager struct {
 	DatasetManager       *DatasetManager
 	ModelManager         *ModelManager
 	IncrementalJobMap    map[string]*IncrementalLearningJob
-	IncrementalJobSignal map[string]bool
 	VolumeMountPrefix    string
 }
 
@@ -102,7 +103,6 @@ func NewIncrementalJobManager(client *wsclient.Client, datasetManager *DatasetMa
 		DatasetManager:       datasetManager,
 		ModelManager:         modelManager,
 		IncrementalJobMap:    make(map[string]*IncrementalLearningJob),
-		IncrementalJobSignal: make(map[string]bool),
 		VolumeMountPrefix:    options.VolumeMountPrefix,
 	}
 
@@ -111,8 +111,6 @@ func NewIncrementalJobManager(client *wsclient.Client, datasetManager *DatasetMa
 
 // Start starts incremental-learning-job manager
 func (im *IncrementalJobManager) Start() error {
-	im.IncrementalJobSignal = make(map[string]bool)
-
 	if err := im.Client.Subscribe(IncrementalLearningJobKind, im.handleMessage); err != nil {
 		klog.Errorf("register incremental-learning-job manager to the client failed, error: %v", err)
 		return err
@@ -131,23 +129,14 @@ func (im *IncrementalJobManager) handleMessage(message *wsclient.Message) {
 	switch message.Header.Operation {
 	case InsertOperation:
 		{
-			if err := im.insertJob(uniqueIdentifier, message.Content); err != nil {
+			if err := im.insertJob(uniqueIdentifier, message); err != nil {
 				klog.Errorf("insert %s(name=%s) to db failed, error: %v", message.Header.ResourceKind, uniqueIdentifier, err)
-			}
-
-			if _, ok := im.IncrementalJobSignal[uniqueIdentifier]; !ok {
-				im.IncrementalJobSignal[uniqueIdentifier] = true
-				go im.startJob(uniqueIdentifier, message)
 			}
 		}
 	case DeleteOperation:
 		{
 			if err := im.deleteJob(uniqueIdentifier); err != nil {
 				klog.Errorf("delete %s(name=%s) to db failed, error: %v", message.Header.ResourceKind, uniqueIdentifier, err)
-			}
-
-			if _, ok := im.IncrementalJobSignal[uniqueIdentifier]; ok {
-				im.IncrementalJobSignal[uniqueIdentifier] = false
 			}
 		}
 	}
@@ -300,23 +289,31 @@ func (im *IncrementalJobManager) startJob(name string, message *wsclient.Message
 
 	err = im.initJob(job)
 	if err != nil {
-		klog.Errorf("init job (name=%s) failed", jobConfig.UniqueIdentifier)
+		klog.Errorf("failed to init job (name=%s): %+v", jobConfig.UniqueIdentifier)
 		return
 	}
 
 	klog.Infof("incremental job(name=%s) is started", name)
 	defer klog.Infof("incremental learning job(name=%s) is stopped", name)
-	err = im.handleData(job)
-	if err == nil {
-		err = im.handleModel(job)
-	}
-	// if err != nil {
-	if false {
-		klog.Errorf("failed to handle incremental learning job: %+v", err)
-		return
-	}
+	go im.handleData(job)
 
 	for {
+		select {
+		case <-job.Done:
+			return
+		default:
+		}
+
+		// in case model is not synced to LC before job synced to LC
+		// here call loadModels in each period
+		err := im.loadModels(job)
+		if err != nil {
+			klog.Warningf("job(name=%s) failed to load models, and waiting it: %v",
+				jobConfig.UniqueIdentifier,
+				err)
+			<-time.After(100 * time.Millisecond)
+			continue
+		}
 
 		switch jobConfig.Phase {
 		case TrainPhase:
@@ -334,26 +331,27 @@ func (im *IncrementalJobManager) startJob(name string, message *wsclient.Message
 			klog.Errorf("job(name=%s) complete the %s task failed, error: %v",
 				jobConfig.UniqueIdentifier, jobConfig.Phase, err)
 		}
-		select {
-		case <-job.Done:
-			return
 
-		case <-time.After(JobIterationIntervalSeconds * time.Second):
-		}
+		<-time.After(JobIterationIntervalSeconds * time.Second)
 	}
 }
 
 // insertJob inserts incremental-learning-job config to db
-func (im *IncrementalJobManager) insertJob(name string, payload []byte) error {
+func (im *IncrementalJobManager) insertJob(name string, message *wsclient.Message) error {
+	first := false
 	job, ok := im.IncrementalJobMap[name]
 	if !ok {
 		job = &IncrementalLearningJob{}
 		job.Done = make(chan struct{})
 		im.IncrementalJobMap[name] = job
+		first = true
 	}
 
-	if err := json.Unmarshal(payload, &job); err != nil {
+	if err := json.Unmarshal(message.Content, &job); err != nil {
 		return err
+	}
+	if first {
+		go im.startJob(name, message)
 	}
 
 	if err := db.SaveResource(name, job.TypeMeta, job.ObjectMeta, job.Spec); err != nil {
@@ -375,8 +373,6 @@ func (im *IncrementalJobManager) deleteJob(name string) error {
 
 	delete(im.IncrementalJobMap, name)
 
-	delete(im.IncrementalJobSignal, name)
-
 	return nil
 }
 
@@ -393,6 +389,16 @@ func (im *IncrementalJobManager) initJob(job *IncrementalLearningJob) error {
 	jobConfig.Phase = TrainPhase
 	jobConfig.WorkerStatus = WorkerReadyStatus
 	jobConfig.TriggerStatus = TriggerReadyStatus
+	trainTrigger, err := newTrigger(job.Spec.TrainSpec.Trigger)
+	if err != nil {
+		return fmt.Errorf("failed to init train trigger: %+w", err)
+	}
+	deployTrigger, err := newTrigger(job.Spec.DeploySpec.Trigger)
+	if err != nil {
+		return fmt.Errorf("failed to init deploy trigger: %+w", err)
+	}
+	jobConfig.TrainTrigger = trainTrigger
+	jobConfig.DeployTrigger = deployTrigger
 
 	if err := createOutputDir(jobConfig); err != nil {
 		return err
@@ -401,35 +407,32 @@ func (im *IncrementalJobManager) initJob(job *IncrementalLearningJob) error {
 	return nil
 }
 
-// triggerTrainTask triggers the train task
-func (im *IncrementalJobManager) triggerTrainTask(job *IncrementalLearningJob) (interface{}, bool, error) {
-	var err error
-	jobConfig := job.JobConfig
-	tt := job.Spec.TrainSpec.Trigger
-
+func newTrigger(t neptunev1.Trigger) (trigger.Base, error) {
 	// convert trigger to map
 	triggerMap := make(map[string]interface{})
-	c, err := json.Marshal(tt)
+	c, err := json.Marshal(t)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	err = json.Unmarshal(c, &triggerMap)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
+	return trigger.NewTrigger(triggerMap)
+}
+
+// triggerTrainTask triggers the train task
+func (im *IncrementalJobManager) triggerTrainTask(job *IncrementalLearningJob) (interface{}, bool, error) {
+	var err error
+	jobConfig := job.JobConfig
 
 	const numOfSamples = "num_of_samples"
 	samples := map[string]interface{}{
 		numOfSamples: len(jobConfig.DataSamples.TrainSamples),
 	}
 
-	trainTrigger, err := trigger.NewTrigger(triggerMap)
-	if err != nil {
-		klog.Errorf("train phase: get trigger object failed, error: %v", err)
-		return nil, false, err
-	}
-	isTrigger := trainTrigger.Trigger(samples)
+	isTrigger := jobConfig.TrainTrigger.Trigger(samples)
 
 	if !isTrigger {
 		return nil, false, nil
@@ -525,7 +528,7 @@ func (im *IncrementalJobManager) triggerDeployTask(job *IncrementalLearningJob) 
 	}
 	tt := job.Spec.DeploySpec.Trigger
 
-	// convert tt.Condition to map
+	// convert tt to map
 	triggerMap := make(map[string]interface{})
 	c, err := json.Marshal(tt)
 	if err != nil {
@@ -537,13 +540,7 @@ func (im *IncrementalJobManager) triggerDeployTask(job *IncrementalLearningJob) 
 		return false, err
 	}
 
-	deployTrigger, err := trigger.NewTrigger(triggerMap)
-	if err != nil {
-		klog.Errorf("job(name=%s) deploy phase: get trigger object failed, error: %v", jobConfig.UniqueIdentifier, err)
-		return false, err
-	}
-
-	return deployTrigger.Trigger(metricDelta), nil
+	return jobConfig.DeployTrigger.Trigger(metricDelta), nil
 }
 
 // deployModel deploys model
@@ -563,20 +560,17 @@ func (im *IncrementalJobManager) deployModel(job *IncrementalLearningJob) (*Mode
 	trainedModelFormat := models[0].Format
 	deployModelFormat := models[1].Format
 	if trainedModelFormat != deployModelFormat {
-		msg := fmt.Sprintf("the trained model format(format=%s) is inconsistent with deploy model(format=%s)",
+		return nil, fmt.Errorf("the trained model format(format=%s) is inconsistent with deploy model(format=%s)",
 			deployModelFormat, deployModelFormat)
-		klog.Errorf(msg)
-
-		return nil, fmt.Errorf(msg)
 	}
 
 	trainedModel := util.AddPrefixPath(im.VolumeMountPrefix, models[0].URL)
 	deployModel := util.AddPrefixPath(im.VolumeMountPrefix, models[1].URL)
-	if _, err = util.CopyFile(trainedModel, deployModel); err != nil {
-		klog.Errorf("copy the trained model file(url=%s) to the deployment model file(url=%s) failed",
-			trainedModel, deployModel)
 
-		return nil, err
+	if _, err = util.CopyFile(trainedModel, deployModel); err != nil {
+		return nil, fmt.Errorf("failed to copy the trained model file(url=%s) to the deployment model file(url=%s): %v",
+			trainedModel, deployModel,
+			err)
 	}
 
 	jobConfig.DeployModel.Format = models[1].Format
@@ -617,53 +611,62 @@ func createOutputDir(jobConfig *JobConfig) error {
 	return nil
 }
 
-// handleModel updates model information for training and deploying
-func (im *IncrementalJobManager) handleModel(job *IncrementalLearningJob) error {
+// loadModels inits model information for training and deploying.
+// it will be called by multi-times in case model not synced to LC before
+// incremental job is synced to LC.
+func (im *IncrementalJobManager) loadModels(job *IncrementalLearningJob) error {
 	jobConfig := job.JobConfig
-	jobConfig.TrainModel.Model = new(ModelInfo)
-	jobConfig.TrainModel.TrainedModel = map[string]string{}
-	jobConfig.DeployModel = new(ModelInfo)
-
-	var modelName string
-	modelName = util.GetUniqueIdentifier(
-		job.Namespace,
-		job.Spec.InitialModel.Name, ModelResourceKind)
-	trainModel, ok := im.ModelManager.GetModel(modelName)
-	// wait 30 seconds for model synced to lc
-	for i := 0; i < 300; i++ {
-		if ok {
-			break
+	getModel := func(name string) (neptunev1.Model, error) {
+		modelName := util.GetUniqueIdentifier(
+			job.Namespace,
+			name, ModelResourceKind)
+		model, ok := im.ModelManager.GetModel(modelName)
+		if !ok {
+			return model, fmt.Errorf("not exists model(name=%s)", modelName)
 		}
-		<-time.After(time.Millisecond * 100)
-		trainModel, ok = im.ModelManager.GetModel(modelName)
-	}
-	if !ok {
-		return fmt.Errorf("not exists model(name=%s)", modelName)
+		return model, nil
 	}
 
-	format := trainModel.Spec.Format
-	url := trainModel.Spec.ModelURL
-	jobConfig.TrainModel.Model.Format = format
-	jobConfig.TrainModel.Model.URL = url
-	if _, ok := jobConfig.TrainModel.TrainedModel[format]; !ok {
+	if jobConfig.TrainModel.Model == nil {
+		initialModel, err := getModel(job.Spec.InitialModel.Name)
+		if err != nil {
+			return err
+		}
+
+		jobConfig.TrainModel.Model = new(ModelInfo)
+		jobConfig.TrainModel.TrainedModel = map[string]string{}
+		format := initialModel.Spec.Format
+		url := initialModel.Spec.ModelURL
+		jobConfig.TrainModel.Model.Format = format
+		jobConfig.TrainModel.Model.URL = url
 		jobConfig.TrainModel.TrainedModel[format] = url
 	}
 
-	modelName = util.GetUniqueIdentifier(
-		job.Namespace, job.Spec.DeploySpec.Model.Name,
-		ModelResourceKind)
-	evalModel, ok := im.ModelManager.GetModel(modelName)
-	if !ok {
-		return fmt.Errorf("not exists model(name=%s)", modelName)
-	}
+	if jobConfig.DeployModel != nil {
+		evalModel, err := getModel(job.Spec.DeploySpec.Model.Name)
+		if err != nil {
+			return err
+		}
 
-	jobConfig.DeployModel.Format = evalModel.Spec.Format
-	jobConfig.DeployModel.URL = evalModel.Spec.ModelURL
+		jobConfig.DeployModel = new(ModelInfo)
+		jobConfig.DeployModel.Format = evalModel.Spec.Format
+		jobConfig.DeployModel.URL = evalModel.Spec.ModelURL
+	}
 	return nil
 }
 
-// handleData updates samples information
-func (im *IncrementalJobManager) handleData(job *IncrementalLearningJob) error {
+func (im *IncrementalJobManager) loadDataset(job *IncrementalLearningJob) error {
+	if job.Dataset != nil {
+		// already loaded
+		return nil
+	}
+
+	datasetName := util.GetUniqueIdentifier(job.Namespace, job.Spec.Dataset.Name, DatasetResourceKind)
+	dataset, ok := im.DatasetManager.GetDataset(datasetName)
+	if !ok || dataset == nil {
+		return fmt.Errorf("not exists dataset(name=%s)", datasetName)
+	}
+
 	jobConfig := job.JobConfig
 	jobConfig.DataSamples = &DataSamples{
 		Numbers:            0,
@@ -672,64 +675,65 @@ func (im *IncrementalJobManager) handleData(job *IncrementalLearningJob) error {
 		EvalSamples:        make([]string, 0),
 	}
 
-	datasetName := util.GetUniqueIdentifier(job.Namespace, job.Spec.Dataset.Name, DatasetResourceKind)
-
-	// wait 30 seconds for dataset synced to lc
-	for i := 0; i < 300; i++ {
-		dataset, ok := im.DatasetManager.GetDataset(datasetName)
-		if ok && dataset != nil {
-			break
-		}
-		<-time.After(time.Millisecond * 100)
-	}
-
-	dataset, ok := im.DatasetManager.GetDataset(datasetName)
-
-	if !ok || dataset == nil {
-		return fmt.Errorf("not exists dataset(name=%s)", datasetName)
-	}
-
-	job.Dataset = dataset.Dataset
-
-	go func() {
-		tick := time.NewTicker(DatasetHandlerIntervalSeconds * time.Second)
-		for {
-			if dataset.DataSource != nil && len(dataset.DataSource.TrainSamples) > jobConfig.DataSamples.Numbers {
-				samples := dataset.DataSource.TrainSamples
-				trainNum := int(job.Spec.Dataset.TrainProb * float64(len(samples)-jobConfig.DataSamples.Numbers))
-
-				jobConfig.Lock.Lock()
-				jobConfig.DataSamples.TrainSamples = append(jobConfig.DataSamples.TrainSamples,
-					samples[(jobConfig.DataSamples.Numbers+1):(jobConfig.DataSamples.Numbers+trainNum+1)]...)
-				klog.Infof("job(name=%s) current train samples nums is %d",
-					jobConfig.UniqueIdentifier, len(jobConfig.DataSamples.TrainSamples))
-
-				jobConfig.DataSamples.EvalVersionSamples = append(jobConfig.DataSamples.EvalVersionSamples,
-					samples[(jobConfig.DataSamples.Numbers+trainNum+1):])
-				jobConfig.Lock.Unlock()
-
-				for _, v := range jobConfig.DataSamples.EvalVersionSamples {
-					jobConfig.DataSamples.EvalSamples = append(jobConfig.DataSamples.EvalSamples, v...)
-				}
-				klog.Infof("job(name=%s) current eval samples nums is %d",
-					jobConfig.UniqueIdentifier, len(jobConfig.DataSamples.EvalSamples))
-
-				jobConfig.DataSamples.Numbers = len(samples)
-			} else {
-				klog.Warningf("job(name=%s) didn't get new data from dataset(name=%s)",
-					jobConfig.UniqueIdentifier, job.Spec.Dataset.Name)
-			}
-			select {
-			case <-job.Done:
-				return
-			case <-tick.C:
-			}
-		}
-	}()
+	job.Dataset = dataset
 	return nil
 }
 
-// createFile create a file
+// handleData updates samples information
+func (im *IncrementalJobManager) handleData(job *IncrementalLearningJob) {
+	tick := time.NewTicker(DatasetHandlerIntervalSeconds * time.Second)
+
+	jobConfig := job.JobConfig
+	for {
+		select {
+		case <-job.Done:
+			return
+		default:
+		}
+
+		// in case dataset is not synced to LC before job synced to LC
+		// here call loadDataset in each period
+		err := im.loadDataset(job)
+		if err != nil {
+			klog.Warningf("job(name=%s) failed to load dataset, and waiting it: %v",
+				jobConfig.UniqueIdentifier,
+				err)
+			<-time.After(100 * time.Millisecond)
+			continue
+		}
+
+		dataset := job.Dataset
+
+		if dataset.DataSource != nil && len(dataset.DataSource.TrainSamples) > jobConfig.DataSamples.Numbers {
+			samples := dataset.DataSource.TrainSamples
+			trainNum := int(job.Spec.Dataset.TrainProb * float64(len(samples)-jobConfig.DataSamples.Numbers))
+
+			jobConfig.Lock.Lock()
+			jobConfig.DataSamples.TrainSamples = append(jobConfig.DataSamples.TrainSamples,
+				samples[(jobConfig.DataSamples.Numbers+1):(jobConfig.DataSamples.Numbers+trainNum+1)]...)
+			klog.Infof("job(name=%s) current train samples nums is %d",
+				jobConfig.UniqueIdentifier, len(jobConfig.DataSamples.TrainSamples))
+
+			jobConfig.DataSamples.EvalVersionSamples = append(jobConfig.DataSamples.EvalVersionSamples,
+				samples[(jobConfig.DataSamples.Numbers+trainNum+1):])
+			jobConfig.Lock.Unlock()
+
+			for _, v := range jobConfig.DataSamples.EvalVersionSamples {
+				jobConfig.DataSamples.EvalSamples = append(jobConfig.DataSamples.EvalSamples, v...)
+			}
+			klog.Infof("job(name=%s) current eval samples nums is %d",
+				jobConfig.UniqueIdentifier, len(jobConfig.DataSamples.EvalSamples))
+
+			jobConfig.DataSamples.Numbers = len(samples)
+		} else {
+			klog.Warningf("job(name=%s) didn't get new data from dataset(name=%s)",
+				jobConfig.UniqueIdentifier, job.Spec.Dataset.Name)
+		}
+		<-tick.C
+	}
+}
+
+// createFile creates a file
 func createFile(dir string, format string) (string, bool) {
 	switch format {
 	case "txt":
