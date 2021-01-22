@@ -169,8 +169,13 @@ func (im *IncrementalJobManager) trainTask(job *IncrementalLearningJob, message 
 			return err
 		}
 
-		message.Header.Operation = StatusOperation
-		err = im.Client.WriteMessage(payload, message.Header)
+		header := wsclient.MessageHeader{
+			Namespace:    message.Header.Namespace,
+			ResourceKind: message.Header.ResourceKind,
+			ResourceName: message.Header.ResourceName,
+			Operation:    StatusOperation,
+		}
+		err = im.Client.WriteMessage(payload, header)
 		if err != nil {
 			return err
 		}
@@ -254,8 +259,10 @@ func (im *IncrementalJobManager) deployTask(job *IncrementalLearningJob, message
 				status.Status = WorkerFailedStatus
 			} else {
 				status.Status = WorkerReadyStatus
-				status.Input.Models = []ModelInfo{
-					*deployModel,
+				status.Input = &WorkerInput{
+					Models: []ModelInfo{
+						*deployModel,
+					},
 				}
 			}
 		} else {
@@ -303,18 +310,13 @@ func (im *IncrementalJobManager) startJob(name string, message *wsclient.Message
 	if err == nil {
 		err = im.handleModel(job)
 	}
-	if err != nil {
+	// if err != nil {
+	if false {
 		klog.Errorf("failed to handle incremental learning job: %+v", err)
 		return
 	}
 
 	for {
-		select {
-		case <-job.Done:
-			return
-
-		case <-time.After(JobIterationIntervalSeconds * time.Second):
-		}
 
 		switch jobConfig.Phase {
 		case TrainPhase:
@@ -331,7 +333,12 @@ func (im *IncrementalJobManager) startJob(name string, message *wsclient.Message
 		if err != nil {
 			klog.Errorf("job(name=%s) complete the %s task failed, error: %v",
 				jobConfig.UniqueIdentifier, jobConfig.Phase, err)
-			continue
+		}
+		select {
+		case <-job.Done:
+			return
+
+		case <-time.After(JobIterationIntervalSeconds * time.Second):
 		}
 	}
 }
@@ -400,7 +407,7 @@ func (im *IncrementalJobManager) triggerTrainTask(job *IncrementalLearningJob) (
 	jobConfig := job.JobConfig
 	tt := job.Spec.TrainSpec.Trigger
 
-	// convert tt.Condition to map
+	// convert trigger to map
 	triggerMap := make(map[string]interface{})
 	c, err := json.Marshal(tt)
 	if err != nil {
@@ -411,6 +418,7 @@ func (im *IncrementalJobManager) triggerTrainTask(job *IncrementalLearningJob) (
 	if err != nil {
 		return nil, false, err
 	}
+
 	const numOfSamples = "num_of_samples"
 	samples := map[string]interface{}{
 		numOfSamples: len(jobConfig.DataSamples.TrainSamples),
@@ -785,17 +793,6 @@ func (im *IncrementalJobManager) monitorWorker() {
 		klog.V(4).Infof("handling worker message %+v", workerMessage)
 
 		name := util.GetUniqueIdentifier(workerMessage.Namespace, workerMessage.OwnerName, workerMessage.OwnerKind)
-		header := wsclient.MessageHeader{
-			Namespace:    workerMessage.Namespace,
-			ResourceKind: workerMessage.OwnerKind,
-			ResourceName: workerMessage.OwnerName,
-			Operation:    StatusOperation,
-		}
-
-		if err := im.Client.WriteMessage(workerMessage, header); err != nil {
-			klog.Errorf("job(name=%s) uploads worker(name=%s) message failed, error: %v",
-				name, workerMessage.Name, err)
-		}
 
 		job, ok := im.IncrementalJobMap[name]
 		if !ok {

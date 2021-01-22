@@ -295,56 +295,56 @@ func (uc *UpstreamController) appendIncrementalLearningJobStatusCondition(name, 
 func (uc *UpstreamController) updateIncrementalLearningFromEdge(name, namespace, operation string, content []byte) error {
 	err := checkUpstreamOperation(operation)
 	if err != nil {
-		var jobStatus struct {
-			Phase  string `json:"phase"`
-			Status string `json:"status"`
-		}
-
-		err = json.Unmarshal(content, &jobStatus)
-		if err != nil {
-			return newUnmarshalError(namespace, name, operation, content)
-		}
-
-		// Get the condition data.
-		// Here unmarshal and marshal immediately to skip the unnecessary fields
-		var condData IncrementalCondData
-		err = json.Unmarshal(content, &condData)
-		if err != nil {
-			return newUnmarshalError(namespace, name, operation, content)
-		}
-		condDataBytes, _ := json.Marshal(&condData)
-
-		cond := neptunev1.ILJobCondition{
-			Type:               neptunev1.ILJobStageCondReady,
-			Status:             v1.ConditionTrue,
-			LastHeartbeatTime:  metav1.Now(),
-			LastTransitionTime: metav1.Now(),
-			Data:               string(condDataBytes),
-		}
-
-		switch strings.ToLower(jobStatus.Phase) {
-		case "train":
-			cond.Stage = neptunev1.ILJobTrain
-		case "eval":
-			cond.Stage = neptunev1.ILJobEval
-		case "deploy":
-			cond.Stage = neptunev1.ILJobDeploy
-		}
-
-		switch strings.ToLower(jobStatus.Status) {
-		case "ready":
-			cond.Type = neptunev1.ILJobStageCondReady
-		case "completed":
-			cond.Type = neptunev1.ILJobStageCondCompleted
-		case "failed":
-			cond.Type = neptunev1.ILJobStageCondFailed
-		}
-
-		err = uc.appendIncrementalLearningJobStatusCondition(name, namespace, cond)
-		if err != nil {
-			return fmt.Errorf("failed to append condition, err:%+w", err)
-		}
 		return err
+	}
+	var jobStatus struct {
+		Phase  string `json:"phase"`
+		Status string `json:"status"`
+	}
+
+	err = json.Unmarshal(content, &jobStatus)
+	if err != nil {
+		return newUnmarshalError(namespace, name, operation, content)
+	}
+
+	// Get the condition data.
+	// Here unmarshal and marshal immediately to skip the unnecessary fields
+	var condData IncrementalCondData
+	err = json.Unmarshal(content, &condData)
+	if err != nil {
+		return newUnmarshalError(namespace, name, operation, content)
+	}
+	condDataBytes, _ := json.Marshal(&condData)
+
+	cond := neptunev1.ILJobCondition{
+		Type:               neptunev1.ILJobStageCondReady,
+		Status:             v1.ConditionTrue,
+		LastHeartbeatTime:  metav1.Now(),
+		LastTransitionTime: metav1.Now(),
+		Data:               string(condDataBytes),
+	}
+
+	switch strings.ToLower(jobStatus.Phase) {
+	case "train":
+		cond.Stage = neptunev1.ILJobTrain
+	case "eval":
+		cond.Stage = neptunev1.ILJobEval
+	case "deploy":
+		cond.Stage = neptunev1.ILJobDeploy
+	}
+
+	switch strings.ToLower(jobStatus.Status) {
+	case "ready":
+		cond.Type = neptunev1.ILJobStageCondReady
+	case "completed":
+		cond.Type = neptunev1.ILJobStageCondCompleted
+	case "failed":
+		cond.Type = neptunev1.ILJobStageCondFailed
+	}
+
+	err = uc.appendIncrementalLearningJobStatusCondition(name, namespace, cond)
+	if err != nil {
+		return fmt.Errorf("failed to append condition, err:%+w", err)
 	}
 	return nil
 }
