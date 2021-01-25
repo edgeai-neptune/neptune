@@ -32,14 +32,10 @@ from yolo3_multiscale import YOLOInference
 LOG = logging.getLogger(__name__)
 
 
-# import tensorflow.contrib.tensorrt as trt
-
 def add_path(path):
     if path not in sys.path:
         sys.path.insert(0, path)
 
-
-# add_path('src')
 
 def init_yolo(model_path, input_shape):
     print('model_path : ', model_path)
@@ -58,7 +54,6 @@ def init_yolo(model_path, input_shape):
 
 
 def validate(model_path, test_dataset, class_names, input_shape=(352, 640)):
-    # model_path = './models/resnet18_352x640_person&face/yolo3_resnet18.pb'
     yolo_infer, yolo_session = init_yolo(model_path, input_shape)
 
     folder_out = 'result'
