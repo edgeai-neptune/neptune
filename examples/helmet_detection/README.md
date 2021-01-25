@@ -163,7 +163,7 @@ Ensure that the path of outputDir in the YAML file exists on your node. This pat
 
 * step1: install the open source video streaming server [EasyDarwin](https://github.com/EasyDarwin/EasyDarwin/tree/dev).
 * step2: start EasyDarwin server.
-* step3: download [video](https://edgeai-neptune.obs.cn-north-1.myhuaweicloud.com/examples/helmet-detection/videio.tar.gz).
+* step3: download [video](https://edgeai-neptune.obs.cn-north-1.myhuaweicloud.com/examples/helmet-detection/video.tar.gz).
 * step4: push a video stream to the url (e.g., `rtsp://localhost/video`) that the inference service can connect.
 
 ```
