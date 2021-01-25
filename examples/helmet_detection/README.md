@@ -39,7 +39,7 @@ metadata:
   name: incremental-dataset
   namespace: neptune-test
 spec:
-  dataUrl: "/data/helmet_detection/dataset/data.txt"
+  url: "/data/helmet_detection/dataset/data.txt"
   format: "txt"
   nodeName: "cloud0"
 EOF
@@ -55,7 +55,7 @@ metadata:
   name: initial-model
   namespace: neptune-test
 spec:
-  modelUrl : "/model/base_model"
+  url : "/model/base_model"
   format: "ckpt"
 EOF
 ```
@@ -70,7 +70,7 @@ metadata:
   name: deploy-model
   namespace: neptune-test
 spec:
-  modelUrl : "/deploy/model.pb"
+  url : "/deploy/model.pb"
   format: "pb"
 EOF
 ```
