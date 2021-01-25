@@ -83,6 +83,7 @@ apiVersion: neptune.io/v1alpha1
 kind: IncrementalLearningJob
 metadata:
   name: helmet-detection-demo
+  namespace: neptune-test
 spec:
   initialModel:
     name: "initial-model"
