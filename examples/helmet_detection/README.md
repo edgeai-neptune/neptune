@@ -18,67 +18,57 @@ Download dataset and model to your node:
 Create Dataset
 
 ```
-kubectl create -f dataset.yaml
-```
-
-```yaml
-apiVersion: solarcorona.io/v1alpha1
+kubectl create -f - <<EOF
+apiVersion: neptune.io/v1alpha1
 kind: Dataset
 metadata:
   name: incremental-dataset
   namespace: neptune-test
 spec:
-  dataUrl: "/data/train_hard_img_IBT_1002"
+  dataUrl: "/data/helmet_detection/dataset/data.txt"
   format: "txt"
-  nodeName: "edge1"
+  nodeName: "cloud0"
+EOF
 ```
 
 Create Initial Model
 
 ```
-kubectl create -f initial-model.yaml
-```
-
-```yaml
-apiVersion: solarcorona.io/v1alpha1
+kubectl create -f - <<EOF
+apiVersion: neptune.io/v1alpha1
 kind: Model
 metadata:
   name: initial-model
   namespace: neptune-test
 spec:
   modelUrl : "/model/initial"
-
+  format: "ckpt"
+EOF
 ```
 
 Create Deploy Model
 
 ```
-kubectl create -f deploy-model.yaml
-```
-
-```yaml
-apiVersion: solarcorona.io/v1alpha1
+kubectl create -f - <<EOF
+apiVersion: neptune.io/v1alpha1
 kind: Model
 metadata:
   name: deploy-model
   namespace: neptune-test
 spec:
-  modelUrl : "/deploy"
-
+  modelUrl : "/deploy/model.pb"
+  format: "pb"
+EOF
 ```
 
-Start The Incremental Job
+Start The Incremental Learning Job
 
 ```
-kubectl create -f incrementaljob.yaml
-```
-
-```yaml
-apiVersion: solarcorona.io/v1alpha1
-kind: IncrementalJob
+kubectl create -f - <<EOF
+apiVersion: neptune.io/v1alpha1
+kind: IncrementalLearningJob
 metadata:
   name: helmet-detection-demo
-  namespace: neptune-test
 spec:
   initialModel:
     name: "initial-model"
@@ -94,11 +84,16 @@ spec:
       parameters:
         - key: "batch_size"
           value: "32"
-        - key: "learning_rate"
-          value: "0.001"
-        - key: "max_epochs"
-          value: "100"
-
+        - key: "epochs"
+          value: "1"
+        - key: "input_shape"
+          value: "352,640"
+        - key: "class_names"
+          value: "person,helmet,helmet-on,helmet-off"
+        - key: "nms_threshold"
+          value: "0.4"
+        - key: "obj_threshold"
+          value: "0.3"
     trigger:
       checkPeriodSeconds: 60
       timer:
@@ -114,7 +109,11 @@ spec:
       scriptBootFile: "eval.py"
       frameworkType: "tensorflow"
       frameworkVersion: "1.15"
-
+      parameters:
+        - key: "input_shape"
+          value: "352,640"
+        - key: "class_names"
+          value: "person,helmet,helmet-on,helmet-off"
   deploySpec:
     model:
       name: "deploy-model"
@@ -123,12 +122,26 @@ spec:
         operator: ">"
         threshold: 0.1
         metric: precision_delta
-
-  nodeName: "solar-corona-cloud"
+    nodeName: "cloud0"
+    hardExampleMining:
+      name: "IBT"
+    workerSpec:
+      scriptDir: "/code"
+      scriptBootFile: "inference.py"
+      frameworkType: "tensorflow"
+      frameworkVersion: "1.15"
+      parameters:
+        - key: "input_shape"
+          value: "352,640"
+        - key: "video_url"
+          value: "xxx"
+        - key: "HE_SAVED_URL" 
+          value: "/he_saved_url"
+  nodeName: "cloud0"
   outputDir: "/output"
-
+EOF
 ```
-Ensure that the path of outputDir in the YAML file exists on your edge node. This path will be directly mounted to the container
+Ensure that the path of outputDir in the YAML file exists on your node. This path will be directly mounted to the container
 
 
 
@@ -136,7 +149,7 @@ Ensure that the path of outputDir in the YAML file exists on your edge node. Thi
 
 * step1: install the open source video streaming server [EasyDarwin](https://github.com/EasyDarwin/EasyDarwin/tree/dev).
 * step2: start EasyDarwin server.
-* step3: download [video](https://edgeai-neptune.obs.cn-north-1.myhuaweicloud.com/examples/helmet-detection-inference/video.tar.gz).
+* step3: download [video](xxxx).
 * step4: push a video stream to the url (e.g., `rtsp://localhost/video`) that the inference service can connect.
 
 ```
@@ -159,5 +172,5 @@ query the service status
 kubectl get incrementaljob helmet-detection-demo -n neptune-test
 ```
 
-after the job completed, we can view the updated model in the /output directory in solar-corona-cloud node
+after the job completed, we can view the updated model in the /output directory in cloud0 node
 
