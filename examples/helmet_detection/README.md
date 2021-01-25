@@ -11,7 +11,18 @@ Follow the [Neptune installation document](/docs/setup/install.md) to install Ne
 ### Prepare Data and Model
 
 Download dataset and model to your node:
-
+* step 1: download [dataset](https://edgeai-neptune.obs.cn-north-1.myhuaweicloud.com/examples/helmet-detection/dataset.tar.gz)
+```
+mkdir -p /data/helmet_detection
+cd /data/helmet_detection
+tar -zxvf dataset.tar.gz
+```
+* step 2: download [base model](https://edgeai-neptune.obs.cn-north-1.myhuaweicloud.com/examples/helmet-detection/model.tar.gz)
+```
+mkdir /model
+cd /model
+tar -zxvf model.tar.gz
+```
 ### Prepare Script
 Download the [scripts](/examples/helmet_detection/training) to the path `code` of your node
 
@@ -44,7 +55,7 @@ metadata:
   name: initial-model
   namespace: neptune-test
 spec:
-  modelUrl : "/model/initial"
+  modelUrl : "/model/base_model"
   format: "ckpt"
 EOF
 ```
@@ -137,7 +148,7 @@ spec:
         - key: "input_shape"
           value: "352,640"
         - key: "video_url"
-          value: "xxx"
+          value: "rtsp://localhost/video"
         - key: "HE_SAVED_URL" 
           value: "/he_saved_url"
   nodeName: "cloud0"
@@ -152,7 +163,7 @@ Ensure that the path of outputDir in the YAML file exists on your node. This pat
 
 * step1: install the open source video streaming server [EasyDarwin](https://github.com/EasyDarwin/EasyDarwin/tree/dev).
 * step2: start EasyDarwin server.
-* step3: download [video](xxxx).
+* step3: download [video](https://edgeai-neptune.obs.cn-north-1.myhuaweicloud.com/examples/helmet-detection/videio.tar.gz).
 * step4: push a video stream to the url (e.g., `rtsp://localhost/video`) that the inference service can connect.
 
 ```
