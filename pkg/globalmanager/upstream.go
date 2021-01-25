@@ -317,7 +317,6 @@ func (uc *UpstreamController) updateIncrementalLearningFromEdge(name, namespace,
 	condDataBytes, _ := json.Marshal(&condData)
 
 	cond := neptunev1.ILJobCondition{
-		Type:               neptunev1.ILJobStageCondReady,
 		Status:             v1.ConditionTrue,
 		LastHeartbeatTime:  metav1.Now(),
 		LastTransitionTime: metav1.Now(),
@@ -331,6 +330,9 @@ func (uc *UpstreamController) updateIncrementalLearningFromEdge(name, namespace,
 		cond.Stage = neptunev1.ILJobEval
 	case "deploy":
 		cond.Stage = neptunev1.ILJobDeploy
+	default:
+		return fmt.Errorf("invalid condition stage: %v", jobStatus.Phase)
+
 	}
 
 	switch strings.ToLower(jobStatus.Status) {
@@ -340,6 +342,10 @@ func (uc *UpstreamController) updateIncrementalLearningFromEdge(name, namespace,
 		cond.Type = neptunev1.ILJobStageCondCompleted
 	case "failed":
 		cond.Type = neptunev1.ILJobStageCondFailed
+	case "waiting":
+		cond.Type = neptunev1.ILJobStageCondWaiting
+	default:
+		return fmt.Errorf("invalid condition type: %v", jobStatus.Status)
 	}
 
 	err = uc.appendIncrementalLearningJobStatusCondition(name, namespace, cond)

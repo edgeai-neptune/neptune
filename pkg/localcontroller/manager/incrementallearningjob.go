@@ -256,8 +256,9 @@ func (im *IncrementalJobManager) deployTask(job *IncrementalLearningJob, message
 			}
 		} else {
 			// TODO
-			status.Phase = TrainPhase
-			status.Status = WorkerWaitingStatus
+			// No need to deploy, just reported completed status
+			status.Phase = DeployPhase
+			status.Status = WorkerCompletedStatus
 		}
 
 		message.Header.Operation = StatusOperation
