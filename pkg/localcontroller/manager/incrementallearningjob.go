@@ -255,8 +255,9 @@ func (im *IncrementalJobManager) deployTask(job *IncrementalLearningJob, message
 				}
 			}
 		} else {
-			// TODO
-			// No need to deploy, just reported completed status
+			// No need to deploy, just report completed status
+			// TODO: instead of reporting deploy-completed, another more reasonable status
+			klog.Infof("no need to deploy model for job(name=%s)", jobConfig.UniqueIdentifier)
 			status.Phase = DeployPhase
 			status.Status = WorkerCompletedStatus
 		}

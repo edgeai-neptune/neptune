@@ -321,6 +321,7 @@ func (uc *UpstreamController) updateIncrementalLearningFromEdge(name, namespace,
 		LastHeartbeatTime:  metav1.Now(),
 		LastTransitionTime: metav1.Now(),
 		Data:               string(condDataBytes),
+		Message:            "reported by lc",
 	}
 
 	switch strings.ToLower(jobStatus.Phase) {
@@ -332,7 +333,6 @@ func (uc *UpstreamController) updateIncrementalLearningFromEdge(name, namespace,
 		cond.Stage = neptunev1.ILJobDeploy
 	default:
 		return fmt.Errorf("invalid condition stage: %v", jobStatus.Phase)
-
 	}
 
 	switch strings.ToLower(jobStatus.Status) {
