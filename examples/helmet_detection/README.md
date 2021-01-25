@@ -12,6 +12,9 @@ Follow the [Neptune installation document](/docs/setup/install.md) to install Ne
 
 Download dataset and model to your node:
 
+### Prepare Script
+Download the [scripts](/examples/helmet_detection/training) to the path `code` of your node
+
 
 ### Create Incremental Job
 
