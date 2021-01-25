@@ -169,7 +169,7 @@ ffmpeg -re -i /data/video/helmet-detection.mp4 -vcodec libx264 -f rtsp rtsp://lo
 
 query the service status
 ```
-kubectl get incrementaljob helmet-detection-demo -n neptune-test
+kubectl get incrementallearningjob helmet-detection-demo -n neptune-test
 ```
 
 after the job completed, we can view the updated model in the /output directory in cloud0 node
