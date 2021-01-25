@@ -156,7 +156,8 @@ spec:
   outputDir: "/output"
 EOF
 ```
-Ensure that the path of outputDir in the YAML file exists on your node. This path will be directly mounted to the container
+1. `HE_SAVED_URL` indicates the address of the deploy container for uploading hard examples. Users will mark the hard examples in the address.
+2. Ensure that the path of outputDir in the YAML file exists on your node. This path will be directly mounted to the container.
 
 
 
