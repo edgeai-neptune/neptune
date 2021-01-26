@@ -21,10 +21,11 @@ type Resource struct {
 	Spec       string
 }
 
+var dbClient *gorm.DB
+
 // SaveResource saves resource info in db
 func SaveResource(name string, typeMeta, objectMeta, spec interface{}) error {
 	var err error
-	dbClient := getClient()
 
 	r := Resource{}
 
@@ -54,7 +55,7 @@ func SaveResource(name string, typeMeta, objectMeta, spec interface{}) error {
 			klog.Errorf("failed to update resource(name=%s): %v", name, err)
 			return err
 		}
-		klog.Infof("updated resource(name=%s)", name)
+		klog.V(2).Infof("updated resource(name=%s)", name)
 	}
 
 	return nil
@@ -63,7 +64,6 @@ func SaveResource(name string, typeMeta, objectMeta, spec interface{}) error {
 // DeleteResource deletes resource info in db
 func DeleteResource(name string) error {
 	var err error
-	dbClient := getClient()
 
 	r := Resource{}
 
@@ -74,11 +74,16 @@ func DeleteResource(name string) error {
 	}
 
 	if err = dbClient.Unscoped().Delete(&r).Error; err != nil {
-		klog.Errorf("delete resource(name=%s) to db failed, error: %v", name, err)
+		klog.Errorf("failed to delete resource(name=%s): %v", name, err)
 		return err
 	}
+	klog.Infof("deleted resource(name=%s)", name)
 
 	return nil
+}
+
+func init() {
+	dbClient = getClient()
 }
 
 // getClient gets db client

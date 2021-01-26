@@ -15,9 +15,9 @@ import (
 	"github.com/edgeai-neptune/neptune/cmd/neptune-lc/app/options"
 	neptunev1 "github.com/edgeai-neptune/neptune/pkg/apis/neptune/v1alpha1"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/db"
+	"github.com/edgeai-neptune/neptune/pkg/localcontroller/gmclient"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/trigger"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/util"
-	"github.com/edgeai-neptune/neptune/pkg/localcontroller/wsclient"
 )
 
 // IncrementalLearningJob defines config for incremental-learning-job
@@ -73,7 +73,7 @@ type TrainModel struct {
 
 // IncrementalLearningJob defines incremental-learning-job manager
 type IncrementalJobManager struct {
-	Client               *wsclient.Client
+	Client               gmclient.ClientI
 	WorkerMessageChannel chan WorkerMessage
 	DatasetManager       *DatasetManager
 	ModelManager         *ModelManager
@@ -95,7 +95,7 @@ const (
 )
 
 // NewIncrementalJobManager creates a incremental-learning-job manager
-func NewIncrementalJobManager(client *wsclient.Client, datasetManager *DatasetManager,
+func NewIncrementalJobManager(client gmclient.ClientI, datasetManager *DatasetManager,
 	modelManager *ModelManager, options *options.LocalControllerOptions) *IncrementalJobManager {
 	im := IncrementalJobManager{
 		Client:               client,
@@ -111,39 +111,13 @@ func NewIncrementalJobManager(client *wsclient.Client, datasetManager *DatasetMa
 
 // Start starts incremental-learning-job manager
 func (im *IncrementalJobManager) Start() error {
-	if err := im.Client.Subscribe(IncrementalLearningJobKind, im.handleMessage); err != nil {
-		klog.Errorf("register incremental-learning-job manager to the client failed, error: %v", err)
-		return err
-	}
-
 	go im.monitorWorker()
 
-	klog.Infof("start incremental-learning-job manager successfully")
 	return nil
 }
 
-// handleMessage handles the message from GlobalManager
-func (im *IncrementalJobManager) handleMessage(message *wsclient.Message) {
-	uniqueIdentifier := util.GetUniqueIdentifier(message.Header.Namespace, message.Header.ResourceName, message.Header.ResourceKind)
-
-	switch message.Header.Operation {
-	case InsertOperation:
-		{
-			if err := im.insertJob(uniqueIdentifier, message); err != nil {
-				klog.Errorf("insert %s(name=%s) to db failed, error: %v", message.Header.ResourceKind, uniqueIdentifier, err)
-			}
-		}
-	case DeleteOperation:
-		{
-			if err := im.deleteJob(uniqueIdentifier); err != nil {
-				klog.Errorf("delete %s(name=%s) to db failed, error: %v", message.Header.ResourceKind, uniqueIdentifier, err)
-			}
-		}
-	}
-}
-
 // trainTask starts training task
-func (im *IncrementalJobManager) trainTask(job *IncrementalLearningJob, message *wsclient.Message) error {
+func (im *IncrementalJobManager) trainTask(job *IncrementalLearningJob) error {
 	jobConfig := job.JobConfig
 
 	if jobConfig.WorkerStatus == WorkerReadyStatus && jobConfig.TriggerStatus == TriggerReadyStatus {
@@ -158,13 +132,7 @@ func (im *IncrementalJobManager) trainTask(job *IncrementalLearningJob, message 
 			return err
 		}
 
-		header := wsclient.MessageHeader{
-			Namespace:    message.Header.Namespace,
-			ResourceKind: message.Header.ResourceKind,
-			ResourceName: message.Header.ResourceName,
-			Operation:    StatusOperation,
-		}
-		err = im.Client.WriteMessage(payload, header)
+		err = im.Client.WriteMessage(payload, job.getHeader())
 		if err != nil {
 			return err
 		}
@@ -190,7 +158,7 @@ func (im *IncrementalJobManager) trainTask(job *IncrementalLearningJob, message 
 }
 
 // evalTask starts eval task
-func (im *IncrementalJobManager) evalTask(job *IncrementalLearningJob, message *wsclient.Message) error {
+func (im *IncrementalJobManager) evalTask(job *IncrementalLearningJob) error {
 	jobConfig := job.JobConfig
 
 	if jobConfig.WorkerStatus == WorkerReadyStatus && jobConfig.TriggerStatus == TriggerReadyStatus {
@@ -201,8 +169,7 @@ func (im *IncrementalJobManager) evalTask(job *IncrementalLearningJob, message *
 			return err
 		}
 
-		message.Header.Operation = StatusOperation
-		err = im.Client.WriteMessage(payload, message.Header)
+		err = im.Client.WriteMessage(payload, job.getHeader())
 		if err != nil {
 			return err
 		}
@@ -229,7 +196,7 @@ func (im *IncrementalJobManager) evalTask(job *IncrementalLearningJob, message *
 }
 
 // deployTask starts deploy task
-func (im *IncrementalJobManager) deployTask(job *IncrementalLearningJob, message *wsclient.Message) error {
+func (im *IncrementalJobManager) deployTask(job *IncrementalLearningJob) error {
 	jobConfig := job.JobConfig
 
 	if jobConfig.WorkerStatus == WorkerReadyStatus && jobConfig.TriggerStatus == TriggerReadyStatus {
@@ -262,8 +229,7 @@ func (im *IncrementalJobManager) deployTask(job *IncrementalLearningJob, message
 			status.Status = WorkerCompletedStatus
 		}
 
-		message.Header.Operation = StatusOperation
-		if err = im.Client.WriteMessage(status, message.Header); err != nil {
+		if err = im.Client.WriteMessage(status, job.getHeader()); err != nil {
 			return err
 		}
 
@@ -281,7 +247,7 @@ func (im *IncrementalJobManager) deployTask(job *IncrementalLearningJob, message
 }
 
 // startJob starts a job
-func (im *IncrementalJobManager) startJob(name string, message *wsclient.Message) {
+func (im *IncrementalJobManager) startJob(name string) {
 	var err error
 	job := im.IncrementalJobMap[name]
 
@@ -319,11 +285,11 @@ func (im *IncrementalJobManager) startJob(name string, message *wsclient.Message
 
 		switch jobConfig.Phase {
 		case TrainPhase:
-			err = im.trainTask(job, message)
+			err = im.trainTask(job)
 		case EvalPhase:
-			err = im.evalTask(job, message)
+			err = im.evalTask(job)
 		case DeployPhase:
-			err = im.deployTask(job, message)
+			err = im.deployTask(job)
 		default:
 			klog.Errorf("not vaild phase: %s", jobConfig.Phase)
 			continue
@@ -338,8 +304,10 @@ func (im *IncrementalJobManager) startJob(name string, message *wsclient.Message
 	}
 }
 
-// insertJob inserts incremental-learning-job config to db
-func (im *IncrementalJobManager) insertJob(name string, message *wsclient.Message) error {
+// Insert inserts incremental-learning-job config to db
+func (im *IncrementalJobManager) Insert(message *gmclient.Message) error {
+	name := util.GetUniqueIdentifier(message.Header.Namespace, message.Header.ResourceName, message.Header.ResourceKind)
+
 	first := false
 	job, ok := im.IncrementalJobMap[name]
 	if !ok {
@@ -352,8 +320,9 @@ func (im *IncrementalJobManager) insertJob(name string, message *wsclient.Messag
 	if err := json.Unmarshal(message.Content, &job); err != nil {
 		return err
 	}
+
 	if first {
-		go im.startJob(name, message)
+		go im.startJob(name)
 	}
 
 	if err := db.SaveResource(name, job.TypeMeta, job.ObjectMeta, job.Spec); err != nil {
@@ -363,17 +332,19 @@ func (im *IncrementalJobManager) insertJob(name string, message *wsclient.Messag
 	return nil
 }
 
-// deleteJob deletes incremental-learning-job config in db
-func (im *IncrementalJobManager) deleteJob(name string) error {
-	if err := db.DeleteResource(name); err != nil {
-		return err
-	}
+// Delete deletes incremental-learning-job config in db
+func (im *IncrementalJobManager) Delete(message *gmclient.Message) error {
+	name := util.GetUniqueIdentifier(message.Header.Namespace, message.Header.ResourceName, message.Header.ResourceKind)
 
 	if job, ok := im.IncrementalJobMap[name]; ok && job.Done != nil {
 		close(job.Done)
 	}
 
 	delete(im.IncrementalJobMap, name)
+
+	if err := db.DeleteResource(name); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -919,12 +890,21 @@ func nextTask(jobConfig *JobConfig) {
 	}
 }
 
-// AddWorkerMessageToChannel adds worker messages to the channel
-func (im *IncrementalJobManager) AddWorkerMessageToChannel(message WorkerMessage) {
+// AddWorkerMessage adds worker messages
+func (im *IncrementalJobManager) AddWorkerMessage(message WorkerMessage) {
 	im.WorkerMessageChannel <- message
 }
 
-// GetKind gets kind of the manager
-func (im *IncrementalJobManager) GetKind() string {
+// GetName returns name of the manager
+func (im *IncrementalJobManager) GetName() string {
 	return IncrementalLearningJobKind
+}
+
+func (job *IncrementalLearningJob) getHeader() gmclient.MessageHeader {
+	return gmclient.MessageHeader{
+		Namespace:    job.Namespace,
+		ResourceKind: job.Kind,
+		ResourceName: job.Name,
+		Operation:    gmclient.StatusOperation,
+	}
 }

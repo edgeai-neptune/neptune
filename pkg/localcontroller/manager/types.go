@@ -1,15 +1,12 @@
 package manager
 
+import (
+	"github.com/edgeai-neptune/neptune/pkg/localcontroller/gmclient"
+)
+
 const (
 	// WorkerMessageChannelCacheSize is size of channel cache
 	WorkerMessageChannelCacheSize = 100
-
-	// InsertOperation is the insert value
-	InsertOperation = "insert"
-	// DeleteOperation is the delete value
-	DeleteOperation = "delete"
-	// StatusOperation is the status value
-	StatusOperation = "status"
 
 	// TrainPhase is the train phase in incremental-learning-job
 	TrainPhase = "train"
@@ -83,7 +80,17 @@ type WorkerOutput struct {
 
 // FeatureManager defines feature manager
 type FeatureManager interface {
+	// Start starts the manager
 	Start() error
-	GetKind() string
-	AddWorkerMessageToChannel(message WorkerMessage)
+
+	// GetName returns name of the manager
+	GetName() string
+
+	// AddWorkerMessage dispatch the worker message to manager
+	AddWorkerMessage(message WorkerMessage)
+
+	// Insert includes gm message creation/updation
+	Insert(*gmclient.Message) error
+
+	Delete(*gmclient.Message) error
 }

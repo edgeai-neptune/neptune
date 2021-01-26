@@ -3,17 +3,15 @@ package manager
 import (
 	"encoding/json"
 
-	"k8s.io/klog/v2"
-
 	neptunev1 "github.com/edgeai-neptune/neptune/pkg/apis/neptune/v1alpha1"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/db"
+	"github.com/edgeai-neptune/neptune/pkg/localcontroller/gmclient"
 	"github.com/edgeai-neptune/neptune/pkg/localcontroller/util"
-	"github.com/edgeai-neptune/neptune/pkg/localcontroller/wsclient"
 )
 
 // ModelManager defines model manager
 type ModelManager struct {
-	Client   *wsclient.Client
+	Client   gmclient.ClientI
 	ModelMap map[string]neptunev1.Model
 }
 
@@ -25,28 +23,17 @@ const (
 )
 
 // NewModelManager creates a model manager
-func NewModelManager(client *wsclient.Client) (*ModelManager, error) {
+func NewModelManager(client gmclient.ClientI) *ModelManager {
 	mm := ModelManager{
 		ModelMap: make(map[string]neptunev1.Model),
 		Client:   client,
 	}
 
-	if err := mm.initModelManager(); err != nil {
-		klog.Errorf("init model manager failed, error: %v", err)
-		return nil, err
-	}
-
-	return &mm, nil
+	return &mm
 }
 
-// initModelManager inits model manager
-func (mm *ModelManager) initModelManager() error {
-	if err := mm.Client.Subscribe(ModelResourceKind, mm.handleMessage); err != nil {
-		klog.Errorf("register model manager to the client failed, error: %v", err)
-		return err
-	}
-	klog.Infof("init model manager successfully")
-
+// Start starts model manager
+func (mm *ModelManager) Start() error {
 	return nil
 }
 
@@ -61,27 +48,12 @@ func (mm *ModelManager) addNewModel(name string, model neptunev1.Model) {
 	mm.ModelMap[name] = model
 }
 
-// handleMessage handles the message from GlobalManager
-func (mm *ModelManager) handleMessage(message *wsclient.Message) {
-	uniqueIdentifier := util.GetUniqueIdentifier(message.Header.Namespace, message.Header.ResourceName, message.Header.ResourceKind)
-	switch message.Header.Operation {
-	case InsertOperation:
-		if err := mm.insertModel(uniqueIdentifier, message.Content); err != nil {
-			klog.Errorf("insert %s(name=%s) to db failed, error: %v", message.Header.ResourceKind, uniqueIdentifier, err)
-		}
-
-	case DeleteOperation:
-		if err := mm.deleteModel(uniqueIdentifier); err != nil {
-			klog.Errorf("delete model(name=%s) in db failed, error: %v", uniqueIdentifier, err)
-		}
-	}
-}
-
 // insertModel inserts model config to db
-func (mm *ModelManager) insertModel(name string, payload []byte) error {
+func (mm *ModelManager) Insert(message *gmclient.Message) error {
 	model := neptunev1.Model{}
+	name := util.GetUniqueIdentifier(message.Header.Namespace, message.Header.ResourceName, message.Header.ResourceKind)
 
-	if err := json.Unmarshal(payload, &model); err != nil {
+	if err := json.Unmarshal(message.Content, &model); err != nil {
 		return err
 	}
 
@@ -94,12 +66,23 @@ func (mm *ModelManager) insertModel(name string, payload []byte) error {
 	return nil
 }
 
-// deleteModel deletes model in db
-func (mm *ModelManager) deleteModel(name string) error {
+// Delete deletes model in db
+func (mm *ModelManager) Delete(message *gmclient.Message) error {
+	name := util.GetUniqueIdentifier(message.Header.Namespace, message.Header.ResourceName, message.Header.ResourceKind)
+
+	delete(mm.ModelMap, name)
+
 	if err := db.DeleteResource(name); err != nil {
 		return err
 	}
-	delete(mm.ModelMap, name)
 
 	return nil
+}
+
+func (mm *ModelManager) GetName() string {
+	return ModelResourceKind
+}
+
+func (mm *ModelManager) AddWorkerMessage(message WorkerMessage) {
+	// dummy
 }
