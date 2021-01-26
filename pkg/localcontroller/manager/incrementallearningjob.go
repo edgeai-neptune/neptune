@@ -776,6 +776,18 @@ func (im *IncrementalJobManager) monitorWorker() {
 			continue
 		}
 
+		// TODO: filter some worker messages out
+		wo := WorkerOutput{}
+		wo.Models = workerMessage.Results
+		wo.OwnerInfo = workerMessage.OwnerInfo
+
+		msg := &UpstreamMessage{
+			Phase:  workerMessage.Kind,
+			Status: workerMessage.Status,
+			Output: &wo,
+		}
+		im.Client.WriteMessage(msg, job.getHeader())
+
 		im.handleWorkerMessage(job, workerMessage)
 	}
 }
