@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import logging
 
 import numpy as np
@@ -43,9 +41,6 @@ class DataGen(object):
         LOG.info("DataGen build end .......")
 
     def next_batch_train(self):
-        # random training shapes
-        # multi_scales = [320, 352, 384, 416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
-
         multi_scales = [self.input_shape]
         for i in range(1, 3):
             multi_scales.append((self.input_shape[0] - 32 * i, self.input_shape[1] - 32 * i))
@@ -109,18 +104,19 @@ class DataGen(object):
                 batch_data['bbox_true_13'] = bbox_true_13  # np.array(bbox_13_list)
                 batch_data['bbox_true_26'] = bbox_true_26  # np.array(bbox_26_list)
                 batch_data['bbox_true_52'] = bbox_true_52  # np.array(bbox_52_list)
-                #                    print (batch_data)
                 return count, batch_data
 
         LOG.info('reaching the last line of data ~~~')
         return None, None
 
-    def rand(self, a=0, b=1):
+    def rand(self, a=0., b=1.):
         return np.random.rand() * (b - a) + a
 
     def read_data(self, annotation_line, input_shape=416, random=True, max_boxes=50, jitter=.3, hue=.1, sat=1.5,
                   val=1.5, proc_img=True):
-        '''random preprocessing for real-time data augmentation'''
+        """
+        random preprocessing for real-time data augmentation
+        """
 
         line = annotation_line.split()
         image = Image.open(line[0])
@@ -277,7 +273,6 @@ class DataGen(object):
                         k = anchor_mask[l].index(n)
 
                         c = true_boxes[b, t, 4].astype('int32')
-                        # print("c=", c)
                         y_true[l][b, j, i, k, 0:4] = true_boxes[b, t, 0:4]
                         y_true[l][b, j, i, k, 4] = 1.
                         y_true[l][b, j, i, k, 5 + c] = 1.

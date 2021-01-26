@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import logging
 
 import numpy as np
@@ -182,29 +181,14 @@ class Interface:
 
             model = Yolo3(sess, False, yolo_config)
 
-            #             with codecs.open('nodes.txt', 'w', encoding='utf-8') as fp_output:
-            #                 for node in sess.graph.get_operations():
-            #                     fp_output.write(node.name + '\n')
-
             input_graph_def = sess.graph.as_graph_def()
             if flags.inference_device == '310D':
                 output_tensors = model.output
             else:
                 output_tensors = [model.boxes, model.scores, model.classes]
-            # output_tensors = model.output
             print('output_tensors : ', output_tensors)
             output_tensors = [t.op.name for t in output_tensors]
             graph = tf.graph_util.convert_variables_to_constants(sess, input_graph_def, output_tensors)
             tf.train.write_graph(graph, model.model_dir, 'model.pb', False)
-
-            '''input_graph_def = sess.graph.as_graph_def()
-            output_tensors = model.output
-            print ('output_tensors : ', output_tensors)
-            output_tensors = [t.op.name for t in output_tensors]
-            graph = convert_variables_to_constants(sess, input_graph_def, output_tensors)
-            tf.train.write_graph(graph, model.model_dir, 'yolo3_not_frozen-2.txt', True)'''
-
-            # graph2 = tf.graph_util.extract_sub_graph(input_graph_def, output_tensors)
-            # tf.train.write_graph(graph2, model.model_dir, 'yolo3_%s-helmet-not_frozen.txt' % yolo_config.net_type, True)
 
         logging.info("save model as .pb end .......")

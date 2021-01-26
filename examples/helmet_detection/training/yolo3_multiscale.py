@@ -49,7 +49,6 @@ class Yolo3:
         else:
             self.images = tf.placeholder(shape=[1, self.input_shape[0], self.input_shape[1], 3], dtype=tf.float32,
                                          name='images')
-            # self.images = tf.placeholder(shape=[1, 3*self.input_shape[0], 3*self.input_shape[1], 3], dtype=tf.float32, name='images')
 
         self.image_shape = tf.placeholder(dtype=tf.int32, shape=(2,), name='shapes')
 
@@ -58,16 +57,7 @@ class Yolo3:
         self.bbox_true_52 = tf.placeholder(shape=[None, None, None, 3, self.num_classes + 5], dtype=tf.float32)
         bbox_true = [self.bbox_true_13, self.bbox_true_26, self.bbox_true_52]
 
-        if flags.net_type == 'resnet18':
-            features_out, filters_yolo_block, conv_index = self._resnet18(self.images, self.is_training)
-        elif flags.net_type == 'resnet18_nas':
-            features_out, filters_yolo_block, conv_index = self._resnet18_nas(self.images,
-                                                                              self.is_training,
-                                                                              self.nas_sequence)
-        else:
-            raise ValueError("%s not supported.", config.net_type)
-
-        pretrain_saver = tf.train.Saver(tf.global_variables())
+        features_out, filters_yolo_block, conv_index = self._resnet18(self.images, self.is_training)
 
         self.output = self.yolo_inference(features_out, filters_yolo_block, conv_index, len(self.anchors) / 3,
                                           self.num_classes, self.is_training)
@@ -88,7 +78,6 @@ class Yolo3:
         self.saver = tf.train.Saver()
 
         ckpt = tf.train.get_checkpoint_state(flags.train_url)
-        # print("***********get_checkpoint_state:{}, path:{}**************".format(ckpt, ckpt.model_checkpoint_path))
         if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
             if not flags.label_changed:
                 print('restore model', ckpt.model_checkpoint_path)
@@ -105,13 +94,6 @@ class Yolo3:
                                                                  or '41' in var.name)]  # or ("yolo" in var.name))]
                 saver_restore = tf.train.Saver(vars_restore)
                 saver_restore.restore(sess, ckpt.model_checkpoint_path)
-        elif flags.load_imagenet_weights:
-            sess.run(tf.global_variables_initializer())
-            sess.run(tf.local_variables_initializer())
-            print('load imagenet weights ', flags.checkpoint_url)
-            # pretrain_saver.restore(sess, config.imagenet_weights_path)
-            # self.load_weights(sess, flags.checkpoint_url)
-            self.load_weights(sess, os.path.join(flags.checkpoint_url, 'resnet18.npz'))
         else:
             print('initialize model with fresh weights...')
             sess.run(tf.global_variables_initializer())
@@ -125,18 +107,6 @@ class Yolo3:
             vname = v.name.replace(':0', '')
             if vname not in data:
                 print("----------skip %s----------" % vname)
-                # if vname.endswith('moving_mean'):
-                # print ('assigning moving_mean')
-                # sess.run(v.assign(data[vname.replace('moving_mean', 'mu')]))
-                # elif vname.endswith('moving_variance'):
-                # print ('assigning moving_variance')
-                # sess.run(v.assign(data[vname.replace('moving_variance', 'sigma')]))
-                # elif vname.endswith('beta'):
-                # print ('assigning beta')
-                # sess.run(v.assign(data[vname.replace('beta', 'beta')]))
-                # elif vname.endswith('gamma'):
-                # print ('assigning gamma')
-                # sess.run(v.assign(data[vname.replace('gamma', 'gamma')]))
                 continue
             print("assigning %s" % vname)
             sess.run(v.assign(data[vname]))
@@ -566,16 +536,15 @@ class Yolo3:
             ignore_mask = ignore_mask.stack()
             ignore_mask = tf.expand_dims(ignore_mask, axis=-1)
             # 计算四个部分的loss
-            xy_loss = object_mask * box_loss_scale * tf.nn.sigmoid_cross_entropy_with_logits(labels=raw_true_xy,
-                                                                                             logits=predictions[...,
-                                                                                                    0:2])
+            xy_loss = object_mask * box_loss_scale * tf.nn.sigmoid_cross_entropy_with_logits(
+                labels=raw_true_xy,
+                logits=predictions[..., 0:2])
             wh_loss = object_mask * box_loss_scale * 0.5 * tf.square(raw_true_wh - predictions[..., 2:4])
-            confidence_loss = object_mask * tf.nn.sigmoid_cross_entropy_with_logits(labels=object_mask,
-                                                                                    logits=predictions[..., 4:5]) + (
-                                      1 - object_mask) * tf.nn.sigmoid_cross_entropy_with_logits(labels=object_mask,
-                                                                                                 logits=predictions[
-                                                                                                        ...,
-                                                                                                        4:5]) * ignore_mask
+            confidence_loss = object_mask * tf.nn.sigmoid_cross_entropy_with_logits(
+                labels=object_mask,
+                logits=predictions[..., 4:5]) + (1 - object_mask) * tf.nn.sigmoid_cross_entropy_with_logits(
+                labels=object_mask,
+                logits=predictions[..., 4:5]) * ignore_mask
             class_loss = object_mask * tf.nn.sigmoid_cross_entropy_with_logits(labels=class_probs,
                                                                                logits=predictions[..., 5:])
             xy_loss = tf.reduce_sum(xy_loss) / tf.cast(tf.shape(yolo_output[0])[0], tf.float32)
@@ -710,9 +679,9 @@ class YOLOInference(object):
             return all_classes, all_scores, all_bboxes
 
     def create_input_feed(self, sess, new_image, img_data):
-        '''
+        """
         create input feed data
-        '''
+        """
 
         input_feed = {}
 
@@ -725,9 +694,9 @@ class YOLOInference(object):
         return input_feed
 
     def create_output_fetch(self, sess):
-        '''
+        """
         create output fetch tensors
-        '''
+        """
 
         output_classes = sess.graph.get_tensor_by_name('output/classes:0')
         output_scores = sess.graph.get_tensor_by_name('output/scores:0')
@@ -738,9 +707,9 @@ class YOLOInference(object):
         return output_fetch
 
     def preprocess(self, image, input_shape):
-        '''
+        """
         resize image with unchanged aspect ratio using padding by opencv
-        '''
+        """
         # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         h, w, _ = image.shape
 

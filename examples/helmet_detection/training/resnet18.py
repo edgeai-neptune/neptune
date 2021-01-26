@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-
-"""resnet18 model"""
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -62,18 +58,19 @@ def _residual_block(x, is_training, name="unit"):
     return x
 
 
-# Helper functions(counts FLOPs and number of weights)
+#
 def _conv(x, filter_size, out_channel, strides, name="conv"):
+    """
+    Helper functions(counts FLOPs and number of weights)
+    """
     in_shape = x.get_shape()
     with tf.variable_scope(name):
         # Main operation: conv2d
-        # with tf.device('/CPU:0'):
         kernel = tf.get_variable('kernel', [filter_size, filter_size, in_shape[3], out_channel], tf.float32,
                                  initializer=tf.random_normal_initializer(
                                      stddev=np.sqrt(2.0 / filter_size / filter_size / out_channel)))
         if kernel not in tf.get_collection(WEIGHT_DECAY_KEY):
             tf.add_to_collection(WEIGHT_DECAY_KEY, kernel)
-            # print('\tadded to WEIGHT_DECAY_KEY: %s(%s)' % (kernel.name, str(kernel.get_shape().as_list())))
         if strides == 1:
             conv = tf.nn.conv2d(x, kernel, [1, strides, strides, 1], padding='SAME')
         else:
@@ -97,7 +94,6 @@ def _fc(x, out_dim, name="fc"):
                                 initializer=tf.constant_initializer(0.0))
         if w not in tf.get_collection(WEIGHT_DECAY_KEY):
             tf.add_to_collection(WEIGHT_DECAY_KEY, w)
-            # print('\tadded to WEIGHT_DECAY_KEY: %s(%s)' % (w.name, str(w.get_shape().as_list())))
         fc = tf.nn.bias_add(tf.matmul(x, w), b)
     return fc
 

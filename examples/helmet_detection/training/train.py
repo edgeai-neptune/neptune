@@ -25,17 +25,9 @@ def main():
     epochs = neptune.context.get_parameters('epochs')
     batch_size = neptune.context.get_parameters('batch_size')
 
-    # loss = keras.losses.CategoricalCrossentropy(from_logits=True)
-    # metric = [keras.metrics.categorical_accuracy]
-    # optimizer = keras.optimizers.Adam(learning_rate=0.0001)
-
-    # tf.flags.DEFINE_string('data_url', default=TRAIN_URL, help='data url for model')
     tf.flags.DEFINE_string('train_url', default=MODEL_URL, help='train url for model')
     tf.flags.DEFINE_string('log_url', default=None, help='log url for model')
     tf.flags.DEFINE_string('checkpoint_url', default=None, help='checkpoint url for model')
-    # tf.flags.DEFINE_string('train_annotations_file', default=TRAIN_TXT_PATH, help='url for train annotation files')
-    # tf.flags.DEFINE_string('val_annotations_file', default=VALID_TXT_PATH, help='url for val annotation files')
-    # tf.flags.DEFINE_string('test_annotations_file', default=TEST_TXT_PATH, help='url for test annotation files')
     tf.flags.DEFINE_string('model_name', default=None, help='url for train annotation files')
     tf.flags.DEFINE_list('class_names', default=class_names.split(','),  # 'helmet,helmet-on,person,helmet-off'
                          help='label names for the training datasets')
