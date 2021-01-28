@@ -4,7 +4,7 @@ import tensorflow as tf
 
 import neptune
 from interface import Interface
-from neptune.incremental_learning.incremental_learning import IncrementalConfig
+from neptune.incremental_learning import IncrementalConfig
 
 LOG = logging.getLogger(__name__)
 MODEL_URL = IncrementalConfig().model_url
@@ -62,8 +62,6 @@ def main():
                                                obj_threshold=obj_threshold,
                                                nms_threshold=nms_threshold)
 
-    # Save the model based on the config.
-    # neptune.save_model(model)
 
 
 if __name__ == '__main__':

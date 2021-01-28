@@ -58,7 +58,6 @@ def _residual_block(x, is_training, name="unit"):
     return x
 
 
-#
 def _conv(x, filter_size, out_channel, strides, name="conv"):
     """
     Helper functions(counts FLOPs and number of weights)
