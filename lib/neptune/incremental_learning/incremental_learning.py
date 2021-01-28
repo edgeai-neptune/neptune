@@ -156,8 +156,8 @@ class Inference:
 
     def inference(self, img_data) -> InferenceResult:
         result = self.model.inference(img_data)
-        bboxes = deal_infer_rsl(result)
-        is_hard_example = self.hard_example_mining_algorithm.hard_judge(bboxes)
+        rsl = deal_infer_rsl(result)
+        is_hard_example = self.hard_example_mining_algorithm.hard_judge(rsl)
         if is_hard_example:
             return InferenceResult(True, result)
         else:
@@ -166,9 +166,9 @@ class Inference:
 
 def deal_infer_rsl(model_output):
     all_classes, all_scores, all_bboxes = model_output
-    bboxes = []
+    rsl = []
     for c, s, bbox in zip(all_classes, all_scores, all_bboxes):
         bbox[0], bbox[1], bbox[2], bbox[3] = bbox[1], bbox[0], bbox[3], bbox[2]
-        bboxes.append(bbox.tolist() + [s, c])
+        rsl.append(bbox.tolist() + [s, c])
 
-    return bboxes
+    return rsl
