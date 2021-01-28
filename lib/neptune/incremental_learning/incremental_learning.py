@@ -20,6 +20,7 @@ class IncrementalConfig(BaseConfig):
         BaseConfig.__init__(self)
         self.model_urls = os.getenv("MODEL_URLS")
         self.base_model_url = os.getenv("BASE_MODEL_URL")
+        self.saved_model_name = "model.pb"
 
 
 def train(model, train_data, epochs, batch_size, class_names, input_shape,
@@ -40,12 +41,12 @@ def train(model, train_data, epochs, batch_size, class_names, input_shape,
     clean_folder(il_config.model_url)
     model.train(train_data, [])  # validation data is empty.
     tf.reset_default_graph()
-    model.save_model_pb()
+    model.save_model_pb(il_config.saved_model_name)
 
     ckpt_model_url = remove_path_prefix(il_config.model_url,
                                         il_config.data_path_prefix)
     pb_model_url = remove_path_prefix(
-        os.path.join(il_config.model_url, 'model.pb'),
+        os.path.join(il_config.model_url, il_config.saved_model_name),
         il_config.data_path_prefix)
 
     # TODO delete metrics whether affect lc
